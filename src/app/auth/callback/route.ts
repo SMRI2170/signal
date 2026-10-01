@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
-  const destination = new URL("/analyze", request.url);
+  const destination = new URL("/auth/complete", request.url);
 
   if (!code) {
     destination.searchParams.set("auth", "failed");
