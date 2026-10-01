@@ -192,6 +192,7 @@ function PreviewResult({ result }: { result: AnalysisResult }) {
       <p className="eyebrow">FIRST ANALYSIS</p>
       <p className="result-label" id="result-title">Romantic Interest Signal</p>
       <output className="result-score">{result.scores.romanticInterest}<small>%</small></output>
+      <p aria-label="5段階中4つのハート" className="result-hearts">♥ ♥ ♥ ♥ <span>♡</span></p>
       <p className="result-disclaimer">
         この数値は相手の実際の感情を特定するものではありません。入力された出来事を評価した結果です。
       </p>
