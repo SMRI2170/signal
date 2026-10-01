@@ -13,7 +13,7 @@ GitHub Pagesでは、サーバーAPIを使わない静的デモを公開しま�
 - Next.js App Router / React / TypeScript
 - Tailwind CSS
 - Supabase（Auth・PostgreSQL・RLS、後続Issueで接続）
-- Jev API（JudgeProvider経由、後続Issueで接続）
+- TypeSafe AI / Jev（JudgeProvider経由）
 
 ## Local Development
 
@@ -64,4 +64,4 @@ GitHub Actionsでも、`main`へのpushとPull Requestごとに同じチェッ�
 `.env.example`を参照してください。
 
 - `NEXT_PUBLIC_*` はブラウザへ公開される値だけに限定します。
-- `SUPABASE_SECRET_KEY` と `JEV_API_KEY` はServer専用です。リポジトリへコミットしないでください。
+- `SUPABASE_SECRET_KEY` と `TYPESAFE_API_KEY` はServer専用です。リポジトリへコミットしないでください。
