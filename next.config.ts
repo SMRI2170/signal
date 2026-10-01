@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
         basePath: "/signal",
         assetPrefix: "/signal/",
         images: { unoptimized: true },
+        trailingSlash: true,
       }
     : {}),
   reactStrictMode: true,
