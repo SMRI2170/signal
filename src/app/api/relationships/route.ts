@@ -60,3 +60,26 @@ export async function POST(request: Request) {
     return apiError("ANALYSIS_UNAVAILABLE", "保存を完了できませんでした。もう一度お試しください。", 503);
   }
 }
+
+export async function GET() {
+  const supabase = await createClient();
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  if (claimsError || !claimsData?.claims?.sub) {
+    return apiError("AUTH_REQUIRED", "ログイン後に確認してください。", 401);
+  }
+
+  const { data, error } = await supabase
+    .from("relationships")
+    .select("id, display_name, created_at, updated_at, analysis_snapshots(romantic_interest, created_at)")
+    .order("updated_at", { ascending: false });
+  if (error) return apiError("ANALYSIS_UNAVAILABLE", "データを取得できませんでした。", 503);
+
+  return NextResponse.json(
+    data.map((relationship) => {
+      const snapshots = [...relationship.analysis_snapshots].sort(
+        (a, b) => b.created_at.localeCompare(a.created_at),
+      );
+      return { ...relationship, current: snapshots[0] ?? null, previous: snapshots[1] ?? null };
+    }),
+  );
+}
