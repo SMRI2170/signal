@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useMemo, useState } from "react";
 
 import { getFactInputErrors, normalizeFact } from "@/lib/fact";
@@ -9,6 +10,7 @@ import type { AnalysisResult, FactInput as FactInputPayload, FactValidationResul
 const INITIAL_FACTS = ["", "", ""];
 const MAX_FACTS = 10;
 const isStaticDemo = process.env.NEXT_PUBLIC_STATIC_DEMO === "true";
+const GUEST_ANALYSIS_STORAGE_KEY = "signal.guestAnalysis.v1";
 
 export function FactInput() {
   const formId = useId();
@@ -71,7 +73,15 @@ export function FactInput() {
         return;
       }
 
-      setResult(isStaticDemo ? await fakeJudge.analyze(requestFacts) : await analyzeOnServer(requestFacts));
+      const analysis = isStaticDemo ? await fakeJudge.analyze(requestFacts) : await analyzeOnServer(requestFacts);
+      setResult(analysis);
+
+      if (!isStaticDemo) {
+        sessionStorage.setItem(
+          GUEST_ANALYSIS_STORAGE_KEY,
+          JSON.stringify({ facts: requestFacts, preview: analysis, createdAt: new Date().toISOString() }),
+        );
+      }
     } catch (error) {
       setRequestError(error instanceof Error ? error.message : "予期しないエラーが発生しました。");
     } finally {
@@ -147,7 +157,7 @@ export function FactInput() {
       </button>
       <p className="form-status">{filledFactCount < 3 ? "最低3つ入力してください" : "3つ以上のFactがそろいました"}</p>
 
-      {result ? <PreviewResult result={result} /> : null}
+      {result ? <PreviewResult isStaticDemo={isStaticDemo} result={result} /> : null}
     </form>
   );
 }
@@ -180,7 +190,7 @@ async function analyzeOnServer(facts: FactInputPayload[]): Promise<AnalysisResul
   return (await response.json()) as AnalysisResult;
 }
 
-function PreviewResult({ result }: { result: AnalysisResult }) {
+function PreviewResult({ isStaticDemo, result }: { isStaticDemo: boolean; result: AnalysisResult }) {
   const metrics = [
     ["会いたいサイン", result.scores.desireToMeet],
     ["相手からの積極性", result.scores.initiative],
@@ -204,7 +214,16 @@ function PreviewResult({ result }: { result: AnalysisResult }) {
           </div>
         ))}
       </dl>
-      <p className="preview-note">これはローカル検証用のFake Judgeによる結果です。Jev連携後に実際の評価へ切り替わります。</p>
+      {isStaticDemo ? (
+        <p className="preview-note">これは公開デモ用のFake Judgeによる結果です。入力内容は保存・送信されません。</p>
+      ) : (
+        <>
+          <Link className="button button-primary save-result-button" href="/auth">
+            結果を保存する <span aria-hidden="true">→</span>
+          </Link>
+          <p className="preview-note">メールでログインすると、今回のFactとSIGNALをあとで見返せます。</p>
+        </>
+      )}
     </section>
   );
 }
