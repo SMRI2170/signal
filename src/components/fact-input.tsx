@@ -136,7 +136,7 @@ export function FactInput() {
 
       {facts.length < MAX_FACTS ? (
         <button className="add-fact-button" onClick={addFact} type="button">
-          <span aria-hidden="true">+</span> 事実を追加
+          <span aria-hidden="true">+</span> ADD FACT
         </button>
       ) : null}
 
@@ -145,7 +145,7 @@ export function FactInput() {
       <button className="button button-primary submit-button" disabled={!isReady || isLoading} type="submit">
         {isLoading ? "分析しています…" : "分析する"} <span aria-hidden="true">→</span>
       </button>
-      <p className="form-status">{filledFactCount} / 3 facts entered</p>
+      <p className="form-status">{filledFactCount < 3 ? "最低3つ入力してください" : "3つ以上のFactがそろいました"}</p>
 
       {result ? <PreviewResult result={result} /> : null}
     </form>
@@ -182,25 +182,25 @@ async function analyzeOnServer(facts: FactInputPayload[]): Promise<AnalysisResul
 
 function PreviewResult({ result }: { result: AnalysisResult }) {
   const metrics = [
-    ["Desire to Meet", result.scores.desireToMeet],
-    ["Initiative", result.scores.initiative],
-    ["Evidence", result.scores.evidenceSufficiency],
+    ["会いたいサイン", result.scores.desireToMeet],
+    ["相手からの積極性", result.scores.initiative],
+    ["判断材料", result.scores.evidenceSufficiency],
   ] as const;
 
   return (
     <section aria-live="polite" className="preview-result" aria-labelledby="result-title">
       <p className="eyebrow">FIRST ANALYSIS</p>
-      <p className="result-label" id="result-title">Romantic Interest Signal</p>
-      <output className="result-score">{result.scores.romanticInterest}<small>%</small></output>
+      <p className="result-label" id="result-title">SIGNAL LEVEL</p>
+      <output className="result-score">{result.scores.romanticInterest}<small>/ 100</small></output>
       <p aria-label="5段階中4つのハート" className="result-hearts">♥ ♥ ♥ ♥ <span>♡</span></p>
       <p className="result-disclaimer">
-        この数値は相手の実際の感情を特定するものではありません。入力された出来事を評価した結果です。
+        これは確率ではなく、入力された出来事から見えるSIGNALスコアです。相手の実際の感情を特定するものではありません。
       </p>
       <dl className="metric-list">
         {metrics.map(([label, score]) => (
           <div key={label}>
             <dt>{label}</dt>
-            <dd>{score}%</dd>
+            <dd>{score}</dd>
           </div>
         ))}
       </dl>
