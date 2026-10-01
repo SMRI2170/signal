@@ -4,8 +4,12 @@ import { apiError } from "@/lib/api-error";
 import { getJudgeProvider } from "@/lib/judge";
 import { JudgeProviderUnavailableError } from "@/lib/judge/provider";
 import { previewAnalysisRequestSchema } from "@/lib/judge/types";
+import { checkRateLimit, guestRateLimitKey } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
+  if (!checkRateLimit(guestRateLimitKey(request, "preview"), 10, 10 * 60 * 1_000).allowed) {
+    return apiError("RATE_LIMITED", "分析回数の上限です。しばらく待ってからお試しください。", 429);
+  }
   const body = await request.json().catch(() => null);
   const parsed = previewAnalysisRequestSchema.safeParse(body);
 

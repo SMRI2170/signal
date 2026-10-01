@@ -4,8 +4,12 @@ import { apiError } from "@/lib/api-error";
 import { getJudgeProvider } from "@/lib/judge";
 import { JudgeProviderUnavailableError } from "@/lib/judge/provider";
 import { validateFactsRequestSchema } from "@/lib/judge/types";
+import { checkRateLimit, guestRateLimitKey } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
+  if (!checkRateLimit(guestRateLimitKey(request, "validate"), 20, 10 * 60 * 1_000).allowed) {
+    return apiError("RATE_LIMITED", "しばらく待ってからもう一度お試しください。", 429);
+  }
   const body = await request.json().catch(() => null);
   const parsed = validateFactsRequestSchema.safeParse(body);
 

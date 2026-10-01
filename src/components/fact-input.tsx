@@ -12,6 +12,15 @@ const MAX_FACTS = 10;
 const isStaticDemo = process.env.NEXT_PUBLIC_STATIC_DEMO === "true";
 const GUEST_ANALYSIS_STORAGE_KEY = "signal.guestAnalysis.v1";
 
+function getGuestSessionId() {
+  const key = "signal.guestSession.v1";
+  const existing = localStorage.getItem(key);
+  if (existing) return existing;
+  const created = crypto.randomUUID();
+  localStorage.setItem(key, created);
+  return created;
+}
+
 export function FactInput() {
   const formId = useId();
   const [facts, setFacts] = useState<string[]>(INITIAL_FACTS);
@@ -79,7 +88,7 @@ export function FactInput() {
       if (!isStaticDemo) {
         sessionStorage.setItem(
           GUEST_ANALYSIS_STORAGE_KEY,
-          JSON.stringify({ facts: requestFacts, preview: analysis, createdAt: new Date().toISOString() }),
+          JSON.stringify({ facts: requestFacts, preview: analysis, createdAt: new Date().toISOString(), idempotencyKey: crypto.randomUUID() }),
         );
       }
     } catch (error) {
@@ -165,7 +174,7 @@ export function FactInput() {
 async function validateFactsOnServer(facts: FactInputPayload[]): Promise<FactValidationResult[]> {
   const response = await fetch("/api/facts/validate", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-signal-guest-session": getGuestSessionId() },
     body: JSON.stringify({ facts }),
   });
 
@@ -179,7 +188,7 @@ async function validateFactsOnServer(facts: FactInputPayload[]): Promise<FactVal
 async function analyzeOnServer(facts: FactInputPayload[]): Promise<AnalysisResult> {
   const response = await fetch("/api/analyses/preview", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-signal-guest-session": getGuestSessionId() },
     body: JSON.stringify({ facts }),
   });
 

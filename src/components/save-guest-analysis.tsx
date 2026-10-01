@@ -7,7 +7,7 @@ import type { FactInput } from "@/lib/judge/types";
 
 const STORAGE_KEY = "signal.guestAnalysis.v1";
 
-type GuestAnalysis = { facts: FactInput[]; createdAt: string };
+type GuestAnalysis = { facts: FactInput[]; createdAt: string; idempotencyKey: string };
 
 export function SaveGuestAnalysis() {
   const [state, setState] = useState<"saving" | "saved" | "missing" | "error">("saving");
@@ -32,7 +32,7 @@ export function SaveGuestAnalysis() {
       body: JSON.stringify({
         displayName: "記録した相手",
         facts: guest.facts,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: guest.idempotencyKey,
       }),
     })
       .then((response) => {
