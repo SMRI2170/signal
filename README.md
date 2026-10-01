@@ -25,7 +25,28 @@ cp .env.example .env.local
 npm run dev
 ```
 
-`http://localhost:3000` を開きます。現時点では外部サービスの接続前なので、`.env.local`は空のままでもUIを確認できます。
+`http://localhost:3000` を開きます。Supabaseを接続するまでは、`.env.local`を空のままでもUIを確認できます。
+
+## Supabase（無料Beta用）
+
+Relationship・Fact・分析履歴はSupabaseに保存します。ローカルで接続する場合は、次を行います。
+
+1. Supabase Freeプロジェクトを作り、EmailのMagic Linkを有効にする。
+2. AuthのRedirect URLに`http://localhost:3000/auth/callback`を追加する。本番環境を作る際は、その環境の`/auth/callback`も追加する。
+3. Project URLとPublishable keyを`.env.local`の`NEXT_PUBLIC_SUPABASE_URL`と`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`へ設定する。
+4. Secret keyは`SUPABASE_SECRET_KEY`としてサーバー環境だけへ設定する。チャット・Git・ブラウザには貼らない。
+5. プロジェクトをCLIへリンクしてからMigrationを適用する。
+
+```bash
+supabase link --project-ref <project-ref>
+supabase db push
+```
+
+`supabase/tests/signal_rls_test.sql`は、所有者以外がRelationship、Fact、Snapshotを読んだり変更したりできないことを検証します。DockerでローカルSupabaseを起動した状態では、次で実行できます。
+
+```bash
+supabase test db --local
+```
 
 ## Quality Checks
 
