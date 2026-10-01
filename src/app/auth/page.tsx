@@ -12,9 +12,10 @@ export default function AuthPage() {
       </nav>
       <section aria-labelledby="auth-title" className="auth-card">
         <Sticker className="auth-sticker" rotate={-10} size="md" type="heart" />
-        <p className="sticker-label">SAVE YOUR SIGNAL</p>
+        <p className="sticker-label">SAVE YOUR THREAD</p>
         <h1 id="auth-title">結果を、<br />あとで見返そう。</h1>
-        <p>メールのリンクでログイン。パスワードは必要ありません。</p>
+        <p>メールのリンクでログイン。パスワードは必要ありません。次の出来事と、今日のSIGNALを比べられます。</p>
+        <p className="auth-privacy-copy">PRIVATE BY DEFAULT — 本名は不要。記録はあなた以外には表示されません。</p>
         <MagicLinkForm />
       </section>
     </main>

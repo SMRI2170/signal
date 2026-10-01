@@ -24,7 +24,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ rel
     if (!relationship) return apiError("NOT_FOUND", "対象の記録が見つかりません。", 404);
     const judge = getJudgeProvider();
     const validations = await judge.validateFacts(parsed.data.facts);
-    if (validations.some((item) => item.status !== "observable")) return apiError("FACT_NOT_OBSERVABLE", "観測可能なFactに書き換えてください。", 422);
+    if (validations.some((item) => item.status !== "observable")) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "FACT_NOT_OBSERVABLE",
+            message: "観測可能なFactに書き換えてください。",
+            requestId: crypto.randomUUID(),
+            retryable: false,
+          },
+          validations,
+        },
+        { status: 422 },
+      );
+    }
     const { data: existingFacts, error: factsError } = await admin.from("facts").select("id, text_original").eq("relationship_id", relationshipId).order("created_at");
     if (factsError) throw factsError;
     const analysis = await judge.analyze([...(existingFacts ?? []).map((fact) => ({ clientFactId: fact.id, text: fact.text_original })), ...parsed.data.facts]);
@@ -34,7 +47,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ rel
       p_analysis: { romanticInterest: analysis.scores.romanticInterest, desireToMeet: analysis.scores.desireToMeet, initiative: analysis.scores.initiative, evidenceSufficiency: analysis.scores.evidenceSufficiency, modelVersion: analysis.modelVersion, rubricVersion: analysis.rubricVersion },
     });
     if (error || !snapshotId) throw error ?? new Error("snapshot missing");
-    return NextResponse.json({ snapshotId, analysis });
+
+    const { data: snapshot, error: snapshotError } = await admin
+      .from("analysis_snapshots")
+      .select("romantic_interest, previous_snapshot_id")
+      .eq("id", snapshotId)
+      .maybeSingle();
+    if (snapshotError || !snapshot) throw snapshotError ?? new Error("saved snapshot missing");
+
+    let previousScore: number | null = null;
+    if (snapshot.previous_snapshot_id) {
+      const { data: previousSnapshot, error: previousSnapshotError } = await admin
+        .from("analysis_snapshots")
+        .select("romantic_interest")
+        .eq("id", snapshot.previous_snapshot_id)
+        .maybeSingle();
+      if (previousSnapshotError) throw previousSnapshotError;
+      previousScore = previousSnapshot?.romantic_interest ?? null;
+    }
+
+    return NextResponse.json({ snapshotId, analysis, currentScore: snapshot.romantic_interest, previousScore });
   } catch (error) {
     if (error instanceof JudgeProviderUnavailableError) return apiError("ANALYSIS_UNAVAILABLE", "現在分析が混み合っています。", 503);
     return apiError("ANALYSIS_UNAVAILABLE", "再分析を完了できませんでした。", 503);
