@@ -1650,3 +1650,121 @@ Mobile App化を急がない。
 **ユーザーの主観と、実際に起きた出来事を分離し、出来事の積み重なりを同じ基準で継続的にJudgeすること。**
 
 迷った場合は、この原則に最も近い実装を選択すること。
+
+---
+
+# 52. Initial Release Focus — Women First
+
+初期リリースの獲得・検証対象は、以下のPersonaへ絞る。
+
+- 20〜29歳程度の女性
+- マッチングアプリで知り合った相手と、1〜数回会っている
+- 相手が自分に興味を持っているかを、感情論ではなく整理したい
+- 新しい連絡や次のデートのたびに、関係性の変化を確認したい
+
+これはMarketingとUX検証の焦点であり、アカウント作成や機能利用を性別で制限するものではない。UI、FactのRubric、DB、認可は従来どおりジェンダー・性的指向に依存しない。
+
+初期Landingでは「マッチングアプリで出会った相手との、交際前の関係を記録する」という状況を明示する。女性向けとした理由は、最初のコピー、Example Fact、インタビュー対象、獲得Channelを一つの明確な仮説へ揃えるためである。
+
+初期インタビューでは最低10人に、以下を確認する。
+
+- 最初に使いたいと思う場面
+- 事実入力が負担になる瞬間
+- 次にFactを追加したくなる出来事
+- 数値・履歴に対して支払う価値があるか
+- 不安を過度に強める表現がないか
+
+---
+
+# 53. Engagement Design
+
+目標は無目的に滞在時間を伸ばすことではなく、「出来事が起きた時に、また戻って記録したくなる」継続利用を作ること。
+
+## Core Loop
+
+```txt
+新しい出来事
+→ Factを短く記録
+→ 何が変わったかを確認
+→ 次に記録すべきタイミングを理解
+→ 次の出来事で再訪
+```
+
+## MVP+ Improvements
+
+Result画面には長文アドバイスではなく、以下を追加する。
+
+- `今回の変化`: Previous / Current / Delta
+- `主なEvidence`: 「会う提案」「相手発の連絡」「予定変更」など、Factから抽出した最大3つの短いLabel
+- `Evidence不足`: 判断できない理由を最大2つの短いLabelで示す
+- `次の記録`: 「次に会った時」「相手から連絡があった時」のような、次のFact追加を促すCTA
+
+JudgeはChain of Thoughtを保存・表示しない。Evidence LabelはFactを分類した短い構造化Outputであり、ユーザーの感情や将来を断定しない。
+
+## Retention Mechanics
+
+- 分析直後にアカウント作成を求めず、Result価値を見せてから「この変化を保存する」を提示する
+- HomeではCurrent Scoreだけでなく、最後に追加したFactと前回比を表示する
+- Relationship DetailではHistory GraphとRecent Factsを同じ画面に置く
+- 再訪導線は「新しい事実を追加する」をPrimary CTAに固定する
+- EmailはOpt-inに限り、Fact本文・Scoreを含めないリマインダーのみを将来検証する。Push NotificationはMVPに含めない
+- Streak、連続ログイン、恐怖を煽るCountdownは使わない
+
+---
+
+# 54. Monetization Strategy
+
+課金対象は「相手の気持ちを知ること」ではなく、「関係性の変化を継続して記録・比較できること」とする。不安を強めて購入を促す設計は採用しない。
+
+## Phase 0: Free Beta
+
+MVP Beta中は決済を実装しない。初回分析と保存・再分析・履歴を無料で提供し、継続利用と支払い意向を測る。
+
+2回目の分析完了後にだけ、任意の`SIGNAL Plus`紹介画面を表示する。ここでは決済せず、興味あり / 今は不要 / 価格が高い の選択肢を記録する。
+
+## Phase 1: Price Validation
+
+価格仮説として、月額¥490、年額¥3,900をA/Bではなく順番に検証する。対象は保存済みRelationshipを再分析したユーザーに限定する。
+
+Free案：
+
+- 1 Relationship
+- 初回分析と、月2回までの再分析
+- 直近14日間のHistory
+
+Plus案：
+
+- 複数Relationship
+- 再分析回数の上限なし
+- 全期間Historyと変化の詳細
+- Share Cardの保存
+
+削除、Fact閲覧、既存データのExportを課金で制限しない。
+
+## Phase 2: Payment
+
+以下を満たした場合にのみ、Stripe等によるWeb Subscriptionを実装する。
+
+- D7 Return Rateが15%以上
+- 保存済みRelationshipあたりの30日再分析回数が平均1.5回以上
+- SIGNAL Plus紹介のInterest Rateが5%以上
+- 価格インタビューで、解決したい継続価値が確認できる
+
+決済導入後も、購入前に価格、更新頻度、解約方法を明確に表示する。無料トライアル終了直前の不安を煽る通知や、解約導線の隠蔽はしない。
+
+---
+
+# 55. Growth Metrics and Decision Gates
+
+Fact本文、Score、Relationship名をAnalyticsへ送らない。計測するのは匿名化されたProduct Eventと集計値だけとする。
+
+| Stage | Primary Metric | Initial target | Decision |
+| --- | --- | --- | --- |
+| Acquisition | Landing → Fact Input | 35% | Copyと流入Channelを見直す |
+| Activation | Fact Input → First Analysis | 60% | 入力負担・Validationを見直す |
+| Save | Result → Account Save | 35% | Result価値・保存導線を見直す |
+| Retention | D7 Return | 15% | 再訪TriggerとHistory価値を見直す |
+| Habit | 30日再分析回数 / 保存Relationship | 1.5 | Mobile App・通知に投資しない |
+| Monetization | Plus Interest | 5% | 実決済を実装しない |
+
+初期リリースでは、滞在時間を主要KPIにしない。高い滞在時間が不安の増幅や入力の分かりにくさを示す可能性があるためである。分析完了、保存、再分析、D7 Returnを優先する。

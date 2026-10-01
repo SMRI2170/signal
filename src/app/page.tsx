@@ -15,7 +15,7 @@ export default function HomePage() {
       </nav>
 
       <section className="hero" aria-labelledby="hero-title">
-        <p className="eyebrow">FACTS, NOT GUESSWORK</p>
+        <p className="eyebrow">FOR THE EARLY STAGE OF DATING</p>
         <h1 id="hero-title">気持ちではなく、<br />起きたことを記録する。</h1>
         <p className="hero-copy">
           相手との間で実際に起きた出来事から、
@@ -26,7 +26,7 @@ export default function HomePage() {
           分析してみる
           <span aria-hidden="true">→</span>
         </Link>
-        <p className="hero-meta">ログインなしで、まず分析できます。</p>
+        <p className="hero-meta">マッチングアプリで出会った、交際前の関係を記録するために。</p>
       </section>
 
       <section aria-labelledby="how-it-works" className="steps-section">
