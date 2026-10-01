@@ -27,11 +27,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Exclude server-only route handlers from the static demo build
+      - name: Exclude server-only product routes from the static demo build
         run: |
           mv src/app/api .github/pages-api
           if [ -d src/app/auth/callback ]; then mv src/app/auth/callback .github/pages-auth-callback; fi
           if [ -f src/proxy.ts ]; then mv src/proxy.ts .github/pages-proxy.ts; fi
+          if [ -d src/app/relationships ]; then mv src/app/relationships .github/pages-relationships; fi
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:

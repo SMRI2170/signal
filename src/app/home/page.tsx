@@ -6,8 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 
 type Snapshot = { romantic_interest: number; created_at: string };
 type Relationship = { id: string; display_name: string; updated_at: string; analysis_snapshots: Snapshot[] };
+const isStaticDemo = process.env.NEXT_PUBLIC_STATIC_DEMO === "true";
 
 export default async function HomePage() {
+  if (isStaticDemo) return <StaticDemoHome />;
+
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   if (!claimsData?.claims?.sub) redirect("/auth");
@@ -56,6 +59,30 @@ export default async function HomePage() {
           );
         })}
       </section>}
+    </main>
+  );
+}
+
+function StaticDemoHome() {
+  return (
+    <main className="page-shell page-shell-compact product-shell home-shell">
+      <nav aria-label="公開デモナビゲーション" className="site-nav y2k-nav product-nav">
+        <Link className="wordmark" href="/">SIGNAL</Link>
+        <Link aria-label="デモを試す" className="nav-add-fact" href="/analyze">TRY DEMO</Link>
+      </nav>
+      <header className="home-heading home-heading-desk">
+        <Sticker className="desk-heading-sticker" rotate={10} size="sm" type="sparkle" />
+        <p className="sticker-label">PUBLIC DEMO</p>
+        <h1>ここでは、<br /><span>Factだけ。</span></h1>
+        <p>公開版では保存せず、入力からSIGNALの見え方を試せます。</p>
+      </header>
+      <section className="empty-card desk-empty-card">
+        <Sticker rotate={-8} size="lg" type="heart" />
+        <p className="sticker-label">NO ACCOUNT NEEDED</p>
+        <h2>3つの出来事で、<br />SIGNALを見てみよう。</h2>
+        <p>本番版では、ログイン後に出来事の追加と履歴の比較ができます。</p>
+        <Link className="button button-primary" href="/analyze">デモをはじめる <span aria-hidden="true">→</span></Link>
+      </section>
     </main>
   );
 }
