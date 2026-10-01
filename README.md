@@ -4,6 +4,10 @@
 
 プロダクト仕様は [SPEC.md](./SPEC.md) をSource of Truthとします。
 
+## Public Demo
+
+GitHub Pagesでは、サーバーAPIを使わない静的デモを公開します。Fact判定とスコアはブラウザ内のFake Judgeで実行され、入力内容は保存・送信されません。本番のSupabase / Jev連携版はCloudflareへデプロイします。
+
 ## Tech Stack
 
 - Next.js App Router / React / TypeScript

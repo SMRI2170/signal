@@ -3,10 +3,12 @@
 import { useId, useMemo, useState } from "react";
 
 import { getFactInputErrors, normalizeFact } from "@/lib/fact";
+import { fakeJudge } from "@/lib/judge/fake-judge";
 import type { AnalysisResult, FactInput as FactInputPayload, FactValidationResult } from "@/lib/judge/types";
 
 const INITIAL_FACTS = ["", "", ""];
 const MAX_FACTS = 10;
+const isStaticDemo = process.env.NEXT_PUBLIC_STATIC_DEMO === "true";
 
 export function FactInput() {
   const formId = useId();
@@ -60,34 +62,16 @@ export function FactInput() {
     setResult(null);
 
     try {
-      const validationResponse = await fetch("/api/facts/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ facts: requestFacts }),
-      });
-
-      if (!validationResponse.ok) {
-        throw new Error("入力内容を確認できませんでした。もう一度お試しください。");
-      }
-
-      const validationResult = (await validationResponse.json()) as FactValidationResult[];
+      const validationResult = isStaticDemo
+        ? await fakeJudge.validateFacts(requestFacts)
+        : await validateFactsOnServer(requestFacts);
       setValidations(validationResult);
 
       if (validationResult.some((validation) => validation.status !== "observable")) {
         return;
       }
 
-      const analysisResponse = await fetch("/api/analyses/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ facts: requestFacts }),
-      });
-
-      if (!analysisResponse.ok) {
-        throw new Error("分析を完了できませんでした。時間をおいてもう一度お試しください。");
-      }
-
-      setResult((await analysisResponse.json()) as AnalysisResult);
+      setResult(isStaticDemo ? await fakeJudge.analyze(requestFacts) : await analyzeOnServer(requestFacts));
     } catch (error) {
       setRequestError(error instanceof Error ? error.message : "予期しないエラーが発生しました。");
     } finally {
@@ -166,6 +150,34 @@ export function FactInput() {
       {result ? <PreviewResult result={result} /> : null}
     </form>
   );
+}
+
+async function validateFactsOnServer(facts: FactInputPayload[]): Promise<FactValidationResult[]> {
+  const response = await fetch("/api/facts/validate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ facts }),
+  });
+
+  if (!response.ok) {
+    throw new Error("入力内容を確認できませんでした。もう一度お試しください。");
+  }
+
+  return (await response.json()) as FactValidationResult[];
+}
+
+async function analyzeOnServer(facts: FactInputPayload[]): Promise<AnalysisResult> {
+  const response = await fetch("/api/analyses/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ facts }),
+  });
+
+  if (!response.ok) {
+    throw new Error("分析を完了できませんでした。時間をおいてもう一度お試しください。");
+  }
+
+  return (await response.json()) as AnalysisResult;
 }
 
 function PreviewResult({ result }: { result: AnalysisResult }) {
