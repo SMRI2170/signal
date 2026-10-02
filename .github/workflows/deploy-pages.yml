@@ -20,6 +20,7 @@ jobs:
     env:
       GITHUB_PAGES: "true"
       NEXT_PUBLIC_STATIC_DEMO: "true"
+      NEXT_PUBLIC_BASE_PATH: "/signal"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import { getFactInputErrors, normalizeFact } from "@/lib/fact";
 import { fakeJudge } from "@/lib/judge/fake-judge";
@@ -11,6 +11,7 @@ const INITIAL_FACTS = ["", "", ""];
 const MAX_FACTS = 10;
 const isStaticDemo = process.env.NEXT_PUBLIC_STATIC_DEMO === "true";
 const GUEST_ANALYSIS_STORAGE_KEY = "signal.guestAnalysis.v1";
+const FACT_DRAFT_STORAGE_KEY = "signal.factDraft.v1";
 
 const SCENE_HINTS = [
   {
@@ -37,6 +38,8 @@ const DEFAULT_PLACEHOLDERS = [
 ];
 
 type AnalysisStage = "idle" | "checking" | "reading";
+type StoredFactDraft = { facts: string[]; updatedAt: string };
+type ViewTransitionDocument = Document & { startViewTransition?: (updateCallback: () => void) => unknown };
 
 function getGuestSessionId() {
   const key = "signal.guestSession.v1";
@@ -56,6 +59,8 @@ export function FactInput() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [analysisStage, setAnalysisStage] = useState<AnalysisStage>("idle");
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
 
   const errors = useMemo(() => getFactInputErrors(facts), [facts]);
   const filledFactCount = facts.filter((fact) => normalizeFact(fact).length > 0).length;
@@ -63,7 +68,37 @@ export function FactInput() {
   const selectedHint = SCENE_HINTS.find((hint) => hint.id === sceneHint);
   const placeholders = selectedHint?.placeholders ?? DEFAULT_PLACEHOLDERS;
 
+  useEffect(() => {
+    let restoredFacts: string[] = [];
+    try {
+      const stored = localStorage.getItem(FACT_DRAFT_STORAGE_KEY);
+      if (stored) {
+        const draft = JSON.parse(stored) as StoredFactDraft;
+        restoredFacts = Array.isArray(draft.facts) ? draft.facts.filter((fact) => typeof fact === "string").slice(0, MAX_FACTS) : [];
+      }
+    } catch {
+      localStorage.removeItem(FACT_DRAFT_STORAGE_KEY);
+    }
+    queueMicrotask(() => {
+      if (restoredFacts.some((fact) => normalizeFact(fact).length > 0)) {
+        setFacts([...restoredFacts, ...Array.from({ length: Math.max(0, INITIAL_FACTS.length - restoredFacts.length) }, () => "")]);
+        setDraftRestored(true);
+      }
+      setDraftReady(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    if (!facts.some((fact) => normalizeFact(fact).length > 0)) {
+      localStorage.removeItem(FACT_DRAFT_STORAGE_KEY);
+      return;
+    }
+    localStorage.setItem(FACT_DRAFT_STORAGE_KEY, JSON.stringify({ facts, updatedAt: new Date().toISOString() } satisfies StoredFactDraft));
+  }, [draftReady, facts]);
+
   function updateFact(index: number, value: string) {
+    setDraftRestored(false);
     setValidations(null);
     setResult(null);
     setRequestError(null);
@@ -71,6 +106,7 @@ export function FactInput() {
   }
 
   function removeFact(index: number) {
+    setDraftRestored(false);
     setValidations(null);
     setResult(null);
     setRequestError(null);
@@ -78,10 +114,31 @@ export function FactInput() {
   }
 
   function addFact() {
+    setDraftRestored(false);
     setValidations(null);
     setResult(null);
     setRequestError(null);
     setFacts((currentFacts) => [...currentFacts, ""]);
+  }
+
+  function clearDraft() {
+    localStorage.removeItem(FACT_DRAFT_STORAGE_KEY);
+    setFacts(INITIAL_FACTS);
+    setSceneHint(null);
+    setValidations(null);
+    setResult(null);
+    setRequestError(null);
+    setDraftRestored(false);
+  }
+
+  function showResult(analysis: AnalysisResult) {
+    const documentWithTransition = document as ViewTransitionDocument;
+    const update = () => setResult(analysis);
+    if (documentWithTransition.startViewTransition && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      documentWithTransition.startViewTransition(update);
+      return;
+    }
+    update();
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -101,7 +158,7 @@ export function FactInput() {
 
       setAnalysisStage("reading");
       const analysis = isStaticDemo ? await fakeJudge.analyze(requestFacts) : await analyzeOnServer(requestFacts);
-      setResult(analysis);
+      showResult(analysis);
 
       if (!isStaticDemo) {
         sessionStorage.setItem(
@@ -126,6 +183,7 @@ export function FactInput() {
     try {
       const guest = JSON.parse(stored) as Record<string, unknown>;
       sessionStorage.setItem(GUEST_ANALYSIS_STORAGE_KEY, JSON.stringify({ ...guest, relationshipLabel }));
+      localStorage.removeItem(FACT_DRAFT_STORAGE_KEY);
       router.push("/auth");
     } catch {
       setRequestError("分析結果を保存する準備ができませんでした。もう一度お試しください。");
@@ -150,6 +208,11 @@ export function FactInput() {
           ))}
         </div>
       </fieldset>
+
+      {draftReady && filledFactCount > 0 ? <div className="fact-draft-status">
+        <div><span>ON THIS DEVICE</span><p>{draftRestored ? "前回の下書きを復元しました。" : "入力内容は、この端末だけに下書き保存されています。"}</p></div>
+        <button onClick={clearDraft} type="button">下書きを消す</button>
+      </div> : null}
 
       <div className="fact-list">
         {facts.map((fact, index) => {
