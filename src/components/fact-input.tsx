@@ -249,10 +249,10 @@ export function FactInput() {
         })}
       </div>
 
-      {facts.length < MAX_FACTS ? <button className="add-fact-button" onClick={addFact} type="button"><span aria-hidden="true">+</span> ADD FACT</button> : null}
+      {facts.length < MAX_FACTS ? <button className="add-fact-button glossy-action glossy-yellow" onClick={addFact} type="button"><span aria-hidden="true">+</span> ADD FACT</button> : null}
       {requestError ? <div className="form-error" role="alert">{requestError}</div> : null}
 
-      <button className="button button-primary submit-button" disabled={!isReady || analysisStage !== "idle"} type="submit">
+      <button className="button button-primary submit-button glossy-action glossy-pink" disabled={!isReady || analysisStage !== "idle"} type="submit">
         {analysisStage === "idle" ? "この内容でSIGNALを見る" : "SIGNALを整理しています…"} <span aria-hidden="true">→</span>
       </button>
       <p className="form-status">{isReady ? "3つのFactがそろいました。" : `あと${Math.max(0, 3 - filledFactCount)}つでSIGNALを見られます`}</p>
@@ -342,7 +342,7 @@ function PreviewResult({ facts, isStaticDemo, onSave, result }: { facts: string[
         <input id="relationship-label" maxLength={80} onChange={(event) => setRelationshipLabel(event.target.value)} value={relationshipLabel} />
         <div className="label-suggestions"><span>候補</span>{["Aさん", "アプリの人", "先週会った人"].map((label) => <button key={label} onClick={() => setRelationshipLabel(label)} type="button">{label}</button>)}</div>
         <p className="privacy-mark">PRIVATE BY DEFAULT — 本名は不要。記録はあなた以外には表示されません。</p>
-        <button className="button button-primary save-result-button" onClick={() => onSave(relationshipLabel.trim() || "アプリの人")} type="button">この記録を残す <span aria-hidden="true">→</span></button>
+        <button className="button button-primary save-result-button glossy-action glossy-yellow" onClick={() => onSave(relationshipLabel.trim() || "アプリの人")} type="button">この記録を残す <span aria-hidden="true">→</span></button>
         <p className="preview-note">次の出来事と、今日のSIGNALを比べられます。</p>
       </div>}
     </section>

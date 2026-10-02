@@ -70,7 +70,7 @@ export default async function RelationshipPage({ params }: { params: Promise<{ r
           ))}
         </dl>
         <div className="detail-actions">
-          <Link className="button button-primary" href={`/relationships/${relationshipId}/facts/new`}>新しいFactを追加 <span aria-hidden="true">+</span></Link>
+          <Link className="button button-primary glossy-action glossy-lime" href={`/relationships/${relationshipId}/facts/new`}>新しいFactを追加 <span aria-hidden="true">+</span></Link>
           <Link className="history-link" href={`/relationships/${relationshipId}/history`}>SIGNALの変化を見る <span aria-hidden="true">→</span></Link>
         </div>
       </section>

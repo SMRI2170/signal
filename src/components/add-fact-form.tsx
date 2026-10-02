@@ -115,7 +115,7 @@ export function AddFactForm({ relationshipId, factNumber }: { relationshipId: st
         {copyMessage ? <span className="validation-copy-message">{copyMessage}</span> : null}
       </div> : null}
       {message ? <p className="form-error" role="alert">{message}</p> : null}
-      <button className="button button-primary add-fact-submit" disabled={!isReady || loading} type="submit">
+      <button className="button button-primary add-fact-submit glossy-action glossy-lime" disabled={!isReady || loading} type="submit">
         {loading ? "SIGNALを整理しています…" : "Factを追加して更新"} <span aria-hidden="true">→</span>
       </button>
       <p className="form-status">{isReady ? "このFactを追加して、前回からの変化を見よう。" : "10文字以上で追加できます"}</p>
