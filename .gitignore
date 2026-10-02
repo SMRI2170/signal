@@ -8,3 +8,7 @@ coverage/
 !.env.example
 *.tsbuildinfo
 .DS_Store
+native/.gradle/
+native/**/build/
+native/local.properties
+native/.idea/

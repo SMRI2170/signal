@@ -1,0 +1,22 @@
+name: SIGNAL
+options:
+  bundleIdPrefix: com.signal
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+targets:
+  SIGNAL:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.signal.app
+        PRODUCT_NAME: SIGNAL
+        INFOPLIST_FILE: Sources/Info.plist
+        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../composeApp/build/bin/iosSimulatorArm64/debugFramework"
+    dependencies:
+      - framework: ../composeApp/build/bin/iosSimulatorArm64/debugFramework/SignalShared.framework

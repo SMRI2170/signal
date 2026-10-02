@@ -12,6 +12,7 @@ GitHub Pagesでは、サーバーAPIを使わない静的デモを公開しま�
 
 - Next.js App Router / React / TypeScript
 - Tailwind CSS
+- Kotlin Multiplatform / Compose Multiplatform（ネイティブiOS・Androidクライアントは[`native/`](./native)）
 - Supabase（Auth・PostgreSQL・RLS、後続Issueで接続）
 - TypeSafe AI / Jev（JudgeProvider経由）
 
@@ -58,6 +59,19 @@ npm run build
 ```
 
 GitHub Actionsでも、`main`へのpushとPull Requestごとに同じチェックを実行します。
+
+## Native iOS / Android
+
+`native/`は、同じCompose UIとFact判定ロジックを共有するKotlin Multiplatform版です。現在のWeb/PWAは集客・検証用として維持し、継続利用が見えた段階でネイティブ配布へ進められます。
+
+```bash
+cd native
+./gradlew :composeApp:testAndroidHostTest
+./gradlew :androidApp:assembleDebug
+./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64
+```
+
+ネイティブアプリにAPIキーは置きません。`JudgeGateway`を、認証済みのSIGNALサーバーAPIへ接続する方式です。詳細は[`native/README.md`](./native/README.md)を参照してください。
 
 ## Environment Variables
 
