@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { RealSticker } from "@/components/real-sticker";
 import { SignalMeter } from "@/components/signal-meter";
 import { Sticker } from "@/components/sticker";
 
@@ -14,8 +15,8 @@ export default function HomePage() {
           <span className="beta-badge">BETA ♡</span>
         </nav>
         <Sticker className="hero-sticker hero-butterfly" rotate={-16} size="xl" type="butterfly" />
-        <Sticker className="hero-sticker hero-heart" rotate={12} size="lg" type="heart" />
-        <Sticker className="hero-sticker hero-orb" rotate={13} size="md" type="orb" />
+        <RealSticker className="hero-sticker hero-heart" kind="chrome-heart" priority size="lg" />
+        <RealSticker className="hero-sticker hero-orb" kind="scanner-orb" priority size="md" />
         <div className="hero-copy-wrap">
           <div aria-hidden="true" className="hero-os-status"><span>CRUSH.SYS</span><i /><span>FACT MODE: ON</span></div>
           <p className="hero-kicker">REALITY CHECK FOR YOUR CRUSH</p>

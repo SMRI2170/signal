@@ -19,6 +19,7 @@ LPとFact Inputを明示的なモバイルviewportで確認した。`scrollWidth
 - [x] Fact本文、Validation、下書き表示、削除操作に装飾が重ならない
 - [x] 主要タップ操作は44px以上
 - [x] Grid、scanline、巨大なSIGNAL文字は背景に限定され、本文のコントラストを下げない
+- [x] HeroのScanner Orb / Chrome Heartは透明背景で表示され、360pxでも`REALITY CHECK FOR YOUR CRUSH`を隠さない
 
 ## 動きとアクセシビリティ
 
@@ -47,4 +48,4 @@ npm run build
 GITHUB_PAGES=true NEXT_PUBLIC_STATIC_DEMO=true NEXT_PUBLIC_BASE_PATH=/signal npm run build
 ```
 
-すべて成功。追加したラスタ画像、Webフォント、外部アイコン、動画、Canvas、Chartライブラリはない。
+すべて成功。Heroだけに透明WebPの立体ステッカーを2点追加（256px、合計約41KB）。Webフォント、外部アイコン、動画、Canvas、Chartライブラリは追加していない。
