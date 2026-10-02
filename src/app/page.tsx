@@ -14,9 +14,7 @@ export default function HomePage() {
         </nav>
         <Sticker className="hero-sticker hero-butterfly" rotate={-16} size="xl" type="butterfly" />
         <Sticker className="hero-sticker hero-heart" rotate={12} size="lg" type="heart" />
-        <Sticker className="hero-sticker hero-star" rotate={-9} size="md" type="star" />
-        <Sticker className="hero-sticker hero-smiley" rotate={9} size="lg" type="smiley" />
-        <Sticker className="hero-sticker hero-sparkle" rotate={13} size="sm" type="sparkle" />
+        <Sticker className="hero-sticker hero-orb" rotate={13} size="md" type="orb" />
         <div className="hero-copy-wrap">
           <div aria-hidden="true" className="hero-os-status"><span>CRUSH.SYS</span><i /><span>FACT MODE: ON</span></div>
           <p className="hero-kicker">REALITY CHECK FOR YOUR CRUSH</p>
@@ -64,7 +62,7 @@ export default function HomePage() {
         <Sticker className="preview-sticker" rotate={-13} size="lg" type="lightning" />
         <p className="sticker-label">SIGNAL LEVEL</p>
         <h2 id="preview-title">恋のSIGNALを、<br />数字で見よう。</h2>
-        <div className="score-preview-card">
+        <div className="score-preview-card material-gel-panel material-scanner-grid">
           <span className="good-signal-pill">★ GOOD SIGNAL ★</span>
           <p>SIGNAL LEVEL</p>
           <output>73<small>/ 100</small></output>

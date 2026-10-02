@@ -2,6 +2,7 @@ import { useId, type CSSProperties } from "react";
 
 export type StickerType =
   | "heart"
+  | "orb"
   | "star"
   | "butterfly"
   | "smiley"
@@ -68,6 +69,14 @@ function StickerShape({ type, hologramId }: { type: StickerType; hologramId: str
         <path className="sticker-inner-line" d="M15 26c0-8 10-13 16-2" />
         <path className="sticker-shine" d="M15 19c3-6 10-8 14-4" />
         <circle className="sticker-dot" cx="48" cy="32" r="2.3" />
+      </>;
+    case "orb":
+      return <>
+        <circle fill={`url(#${hologramId})`} cx="32" cy="32" r="27" />
+        <circle className="sticker-detail" cx="32" cy="32" r="15" />
+        <circle className="sticker-ink" cx="32" cy="32" r="5" />
+        <path className="sticker-shine" d="M17 23c5-8 13-11 20-8" />
+        <path className="sticker-inner-line" d="M47 22c4 4 6 10 5 16" />
       </>;
     case "star":
       return <>

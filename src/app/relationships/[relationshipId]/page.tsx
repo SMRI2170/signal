@@ -37,7 +37,7 @@ export default async function RelationshipPage({ params }: { params: Promise<{ r
         <h1>{data.display_name}</h1>
         <p>記録したFactから見える、今のSIGNAL。</p>
       </header>
-      <section aria-labelledby="signal-level-title" className="detail-card signal-board-card love-os-board">
+      <section aria-labelledby="signal-level-title" className="detail-card signal-board-card love-os-board material-gel-panel">
         <div className="signal-board-topline">
           <p id="signal-level-title">SIGNAL LEVEL</p>
           <span className="snapshot-stamp">CURRENT</span>

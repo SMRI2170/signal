@@ -86,7 +86,7 @@ export function AddFactForm({ relationshipId, factNumber }: { relationshipId: st
 
   return (
     <form className="fact-form add-fact-ticket-form" noValidate onSubmit={submit}>
-      <article className="fact-card fact-ticket-card">
+      <article className="fact-card fact-ticket-card material-glass-ticket">
         <div className="fact-ticket-perforation" aria-hidden="true" />
         <div className="fact-card-header fact-ticket-header">
           <label htmlFor="new-fact">FACT {String(factNumber).padStart(2, "0")}</label>

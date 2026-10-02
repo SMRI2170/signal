@@ -222,7 +222,7 @@ export function FactInput() {
           const validation = validations?.[index];
 
           return (
-            <article className="fact-card fact-ticket" key={fieldId}>
+            <article className="fact-card fact-ticket material-glass-ticket" key={fieldId}>
               <div className="fact-card-header">
                 <label htmlFor={fieldId}>FACT {String(index + 1).padStart(2, "0")}</label>
                 {facts.length > 3 ? <button aria-label={`FACT ${index + 1}を削除`} className="text-button" onClick={() => removeFact(index)} type="button">削除</button> : <span>WRITE WHAT HAPPENED</span>}
@@ -316,7 +316,7 @@ function PreviewResult({ facts, isStaticDemo, onSave, result }: { facts: string[
   ] as const;
 
   return (
-    <section aria-live="polite" className="preview-result signal-receipt love-os-receipt" aria-labelledby="result-title">
+    <section aria-live="polite" className="preview-result signal-receipt love-os-receipt material-gel-panel" aria-labelledby="result-title">
       <p className="receipt-kicker">FIRST ANALYSIS</p>
       <div className="result-title-row"><p className="result-label" id="result-title">SIGNAL LEVEL</p><span>FIRST</span></div>
       <output className="result-score">{result.scores.romanticInterest}<small>/ 100</small></output>
