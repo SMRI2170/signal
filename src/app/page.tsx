@@ -47,7 +47,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="demo-section y2k-dots" aria-labelledby="demo-title">
+      <section className="demo-section y2k-dots y2k-bg-grid" aria-labelledby="demo-title">
         <div className="section-heading-row">
           <p className="sticker-label">♡ WHAT HAPPENED? ★</p>
           <Sticker rotate={8} size="sm" type="heart" />
@@ -59,7 +59,7 @@ export default function HomePage() {
         <Link className="y2k-button y2k-button-yellow" href="/analyze">JUDGE IT <span aria-hidden="true">♥</span></Link>
       </section>
 
-      <section className="preview-section" aria-labelledby="preview-title">
+      <section className="preview-section y2k-bg-scanlines" aria-labelledby="preview-title">
         <Sticker className="preview-sticker" rotate={-13} size="lg" type="lightning" />
         <p className="sticker-label">SIGNAL LEVEL</p>
         <h2 id="preview-title">恋のSIGNALを、<br />数字で見よう。</h2>
@@ -81,7 +81,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="history-section" aria-labelledby="history-title">
+      <section className="history-section y2k-bg-orb" aria-labelledby="history-title">
         <div className="section-heading-row">
           <p className="sticker-label">YOUR SIGNAL HISTORY</p>
           <Sticker rotate={14} size="md" type="checker" />
@@ -100,7 +100,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="final-cta y2k-dots" aria-labelledby="cta-title">
+      <section className="final-cta y2k-dots y2k-bg-wordmark" aria-labelledby="cta-title">
         <Sticker className="cta-sticker cta-left" rotate={-12} size="lg" type="butterfly" />
         <Sticker className="cta-sticker cta-right" rotate={9} size="lg" type="smiley" />
         <p className="sticker-label">FACT ONLY. NO OVERTHINKING.</p>
