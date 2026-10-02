@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { SignalMeter } from "@/components/signal-meter";
 import { Sticker } from "@/components/sticker";
 
 const exampleFacts = ["次のデートに誘われた", "相手からLINEが来た", "帰宅後にまた連絡があった"];
@@ -63,11 +64,13 @@ export default function HomePage() {
         <p className="sticker-label">SIGNAL LEVEL</p>
         <h2 id="preview-title">恋のSIGNALを、<br />数字で見よう。</h2>
         <div className="score-preview-card material-gel-panel material-scanner-grid">
+          <div className="scanner-console" aria-hidden="true"><span>♥ SIGNAL SCANNER ♥</span><span>PREVIEW MODE</span></div>
           <span className="good-signal-pill">★ GOOD SIGNAL ★</span>
           <p>SIGNAL LEVEL</p>
           <output>73<small>/ 100</small></output>
+          <SignalMeter value={73} />
           <div aria-label="5段階中4つのハート" className="heart-meter">♥ ♥ ♥ ♥ <span>♡</span></div>
-          <strong>↑ +11</strong>
+          <div className="scanner-status-row"><strong>↑ +11</strong><span>LAST SCAN <b>PREVIEW</b></span></div>
           <span className="score-note">前回の分析から上がった</span>
           <dl className="score-breakdown">
             <div><dt>会いたいサイン</dt><dd>81</dd></div>

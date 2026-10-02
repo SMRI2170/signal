@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { SignalMeter } from "@/components/signal-meter";
 import { Sticker } from "@/components/sticker";
 import { createClient } from "@/lib/supabase/server";
+
+const scanDateFormatter = new Intl.DateTimeFormat("ja-JP", { month: "numeric", day: "numeric" });
 
 export default async function RelationshipPage({ params }: { params: Promise<{ relationshipId: string }> }) {
   const { relationshipId } = await params;
@@ -18,6 +21,9 @@ export default async function RelationshipPage({ params }: { params: Promise<{ r
   const current = snapshots[0];
   const previous = snapshots[1];
   const delta = current && previous ? current.romantic_interest - previous.romantic_interest : null;
+  const hasCurrent = Boolean(current);
+  const status = !hasCurrent ? "MORE FACTS NEEDED" : current.romantic_interest >= 70 ? "GOOD SIGNAL ★" : "SIGNAL CHECK ★";
+  const lastScan = current ? scanDateFormatter.format(new Date(current.created_at)) : "NO SCAN";
   const recentFacts = [...data.facts].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5);
   const metrics = [
     { label: "会いたいサイン", value: current?.desire_to_meet },
@@ -38,9 +44,10 @@ export default async function RelationshipPage({ params }: { params: Promise<{ r
         <p>記録したFactから見える、今のSIGNAL。</p>
       </header>
       <section aria-labelledby="signal-level-title" className="detail-card signal-board-card love-os-board material-gel-panel">
+        <div className="scanner-console"><span>♥ SIGNAL SCANNER ♥</span><span>{hasCurrent ? "CURRENT SCAN" : "WAITING FOR FACTS"}</span></div>
         <div className="signal-board-topline">
           <p id="signal-level-title">SIGNAL LEVEL</p>
-          <span className="snapshot-stamp">CURRENT</span>
+          <span className="snapshot-stamp">{hasCurrent ? "CURRENT" : "PENDING"}</span>
         </div>
         <div className="signal-board-score-row">
           <strong>{current?.romantic_interest ?? "--"}<small>/ 100</small></strong>
@@ -48,7 +55,9 @@ export default async function RelationshipPage({ params }: { params: Promise<{ r
             {delta === null ? "FIRST\nSIGNAL" : `${delta >= 0 ? "↑ +" : "↓ "}${Math.abs(delta)}`}<span>{delta === null ? "最初の記録" : "前回比"}</span>
           </p>
         </div>
-        <p className="score-board-note">確率ではなく、入力された事実から算出したSIGNALスコアです。</p>
+        {hasCurrent ? <SignalMeter value={current.romantic_interest} /> : null}
+        <div className="scanner-status-row"><span>STATUS <b>{status}</b></span><span>LAST SCAN <b>{lastScan}</b></span></div>
+        <p className="score-board-note">{hasCurrent ? "確率ではなく、入力された事実から算出したSIGNALスコアです。" : "まだSIGNALを表示する材料がありません。最初のFactを追加してください。"}</p>
         <dl className="signal-metric-list">
           {metrics.map((metric, index) => (
             <div key={metric.label}>

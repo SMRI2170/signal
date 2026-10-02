@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState } from "react";
 
+import { SignalMeter } from "@/components/signal-meter";
 import { getFactInputErrors, normalizeFact } from "@/lib/fact";
 import { fakeJudge } from "@/lib/judge/fake-judge";
 import type { AnalysisResult, FactInput as FactInputPayload, FactValidationResult } from "@/lib/judge/types";
@@ -309,6 +310,7 @@ async function analyzeOnServer(facts: FactInputPayload[]): Promise<AnalysisResul
 
 function PreviewResult({ facts, isStaticDemo, onSave, result }: { facts: string[]; isStaticDemo: boolean; onSave: (relationshipLabel: string) => void; result: AnalysisResult }) {
   const [relationshipLabel, setRelationshipLabel] = useState("アプリの人");
+  const status = result.scores.romanticInterest >= 70 ? "GOOD SIGNAL ★" : "SIGNAL CHECK ★";
   const metrics = [
     ["会いたいサイン", result.scores.desireToMeet],
     ["相手からの積極性", result.scores.initiative],
@@ -316,10 +318,13 @@ function PreviewResult({ facts, isStaticDemo, onSave, result }: { facts: string[
   ] as const;
 
   return (
-    <section aria-live="polite" className="preview-result signal-receipt love-os-receipt material-gel-panel" aria-labelledby="result-title">
-      <p className="receipt-kicker">FIRST ANALYSIS</p>
+    <section aria-live="polite" className="preview-result signal-receipt love-os-receipt material-gel-panel material-scanner-grid" aria-labelledby="result-title">
+      <div className="scanner-console"><span>♥ SIGNAL SCANNER ♥</span><span>FIRST SCAN</span></div>
+      <p className="receipt-kicker">{status}</p>
       <div className="result-title-row"><p className="result-label" id="result-title">SIGNAL LEVEL</p><span>FIRST</span></div>
       <output className="result-score">{result.scores.romanticInterest}<small>/ 100</small></output>
+      <SignalMeter value={result.scores.romanticInterest} />
+      <div className="scanner-status-row"><span>STATUS <b>{status}</b></span><span>LAST SCAN <b>FIRST</b></span></div>
       <section className="result-evidence" aria-labelledby="recorded-facts-title">
         <h2 id="recorded-facts-title">今回記録した事実</h2>
         <ol>{facts.slice(0, 3).map((fact, index) => <li key={fact}><span>{String(index + 1).padStart(2, "0")}</span>{fact}</li>)}</ol>
