@@ -40,7 +40,7 @@ export default async function HistoryPage({ params }: { params: Promise<{ relati
         <p>1回の結果ではなく、出来事が積み重なった流れを見よう。</p>
       </header>
       {points.length === 0 ? <section className="empty-card"><p className="sticker-label">NO HISTORY YET</p><h2>次のFactで、<br />変化が残ります。</h2><Link className="button button-primary" href={`/relationships/${relationshipId}/facts/new`}>Factを追加する <span aria-hidden="true">→</span></Link></section> : <>
-        <figure className="signal-tape-chart" aria-labelledby="history-chart-caption">
+        <figure className="signal-tape-chart love-os-tape" aria-labelledby="history-chart-caption">
           <figcaption id="history-chart-caption"><span>SIGNAL LEVEL</span><strong>{points.at(-1)?.romantic_interest}<small>/ 100</small></strong></figcaption>
           <svg aria-label="時系列のSIGNAL LEVEL" role="img" viewBox="0 0 320 154">
             <title>SIGNAL LEVELの履歴グラフ</title>

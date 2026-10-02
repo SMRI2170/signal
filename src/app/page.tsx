@@ -18,6 +18,7 @@ export default function HomePage() {
         <Sticker className="hero-sticker hero-smiley" rotate={9} size="lg" type="smiley" />
         <Sticker className="hero-sticker hero-sparkle" rotate={13} size="sm" type="sparkle" />
         <div className="hero-copy-wrap">
+          <div aria-hidden="true" className="hero-os-status"><span>CRUSH.SYS</span><i /><span>FACT MODE: ON</span></div>
           <p className="hero-kicker">REALITY CHECK FOR YOUR CRUSH</p>
           <p className="hero-logo">SIGNAL</p>
           <h1 id="hero-title">彼って、<br /><span>脈あり？</span></h1>

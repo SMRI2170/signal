@@ -5,7 +5,7 @@ import { Sticker } from "@/components/sticker";
 
 export default function AnalyzePage() {
   return (
-    <main className="page-shell page-shell-compact analyze-shell">
+    <main className="page-shell page-shell-compact analyze-shell love-os-input-shell">
       <nav aria-label="分析ナビゲーション" className="site-nav y2k-nav">
         <Link className="wordmark" href="/">SIGNAL</Link>
         <Link className="back-link" href="/">× CLOSE</Link>

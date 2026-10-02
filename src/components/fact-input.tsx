@@ -133,7 +133,7 @@ export function FactInput() {
   }
 
   return (
-    <form className="fact-form" noValidate onSubmit={handleSubmit}>
+    <form className="fact-form love-os-input-form" noValidate onSubmit={handleSubmit}>
       <fieldset className="scene-hints">
         <legend>思い出すヒント <span>（任意・保存されません）</span></legend>
         <div>
@@ -253,7 +253,7 @@ function PreviewResult({ facts, isStaticDemo, onSave, result }: { facts: string[
   ] as const;
 
   return (
-    <section aria-live="polite" className="preview-result signal-receipt" aria-labelledby="result-title">
+    <section aria-live="polite" className="preview-result signal-receipt love-os-receipt" aria-labelledby="result-title">
       <p className="receipt-kicker">FIRST ANALYSIS</p>
       <div className="result-title-row"><p className="result-label" id="result-title">SIGNAL LEVEL</p><span>FIRST</span></div>
       <output className="result-score">{result.scores.romanticInterest}<small>/ 100</small></output>
