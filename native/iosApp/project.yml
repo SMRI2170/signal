@@ -17,6 +17,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.signal.app
         PRODUCT_NAME: SIGNAL
         INFOPLIST_FILE: Sources/Info.plist
+        SIGNAL_API_BASE_URL: ""
         FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../composeApp/build/bin/iosSimulatorArm64/debugFramework"
     dependencies:
       - framework: ../composeApp/build/bin/iosSimulatorArm64/debugFramework/SignalShared.framework

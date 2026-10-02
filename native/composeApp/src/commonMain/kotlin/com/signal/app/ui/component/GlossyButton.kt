@@ -30,6 +30,7 @@ fun GlossyButton(
   tail: Color,
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
+  enabled: Boolean = true,
 ) {
   Box(modifier) {
     Box(
@@ -41,6 +42,7 @@ fun GlossyButton(
     )
     Button(
       onClick = onClick,
+      enabled = enabled,
       modifier = Modifier
         .fillMaxWidth()
         .height(54.dp)

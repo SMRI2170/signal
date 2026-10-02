@@ -27,8 +27,8 @@ data class SignalAnalysis(
  * calls SIGNAL's own server, which is the only place a Judge provider key lives.
  */
 interface JudgeGateway {
-  fun validate(facts: List<String>): List<FactValidation>
-  fun analyze(facts: List<String>): SignalAnalysis
+  suspend fun validate(facts: List<String>): List<FactValidation>
+  suspend fun analyze(facts: List<String>): SignalAnalysis
 }
 
 object LocalJudgeGateway : JudgeGateway {
@@ -40,7 +40,7 @@ object LocalJudgeGateway : JudgeGateway {
   private val strongPositivePatterns = listOf("二人で", "二人きり", "次の", "次回", "また会")
   private val negativePatterns = listOf("延期", "キャンセル", "返信がない", "既読無視", "断ら")
 
-  override fun validate(facts: List<String>): List<FactValidation> = facts.map { raw ->
+  override suspend fun validate(facts: List<String>): List<FactValidation> = facts.map { raw ->
     val fact = normalizeFact(raw)
     when {
       interpretationPatterns.any(fact::contains) -> FactValidation(
@@ -63,7 +63,7 @@ object LocalJudgeGateway : JudgeGateway {
     }
   }
 
-  override fun analyze(facts: List<String>): SignalAnalysis {
+  override suspend fun analyze(facts: List<String>): SignalAnalysis {
     val effects = facts.map(::factEffect)
     val totalEffect = effects.sum()
     val meetingEvidence = facts.count { fact -> listOf("誘われ", "空いている", "会い", "会う", "二人").any(fact::contains) }

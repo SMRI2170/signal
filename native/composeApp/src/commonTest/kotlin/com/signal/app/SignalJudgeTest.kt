@@ -1,5 +1,6 @@
 package com.signal.app
 
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -12,7 +13,7 @@ class SignalJudgeTest {
   }
 
   @Test
-  fun separatesObservableFactsFromInterpretations() {
+  fun separatesObservableFactsFromInterpretations() = runTest {
     val validations = LocalJudgeGateway.validate(
       listOf("相手から来週空いているか聞かれた", "相手は絶対に自分のことが好き"),
     )
@@ -21,7 +22,7 @@ class SignalJudgeTest {
   }
 
   @Test
-  fun producesBoundedSignalScores() {
+  fun producesBoundedSignalScores() = runTest {
     val analysis = LocalJudgeGateway.analyze(
       listOf("相手から食事に誘われた", "相手から来週空いているか聞かれた", "二人で3時間話した"),
     )

@@ -13,7 +13,8 @@ struct SignalNativeApp: App {
 
 private struct SignalComposeView: UIViewControllerRepresentable {
   func makeUIViewController(context: Context) -> UIViewController {
-    MainViewControllerKt.MainViewController()
+    let apiBaseURL = Bundle.main.object(forInfoDictionaryKey: "SIGNALApiBaseURL") as? String
+    return MainViewControllerKt.MainViewController(apiBaseUrl: apiBaseURL)
   }
 
   func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}

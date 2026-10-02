@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +51,7 @@ import com.signal.app.ui.theme.SignalColors
 import com.signal.app.ui.theme.SignalShapes
 import com.signal.app.ui.theme.SignalTheme
 import com.signal.app.ui.theme.blackOffsetShadow
+import kotlinx.coroutines.launch
 
 private enum class Screen { LANDING, FACTS, RESULT, HISTORY }
 
@@ -61,6 +63,8 @@ fun SignalApp(gateway: JudgeGateway = LocalJudgeGateway) {
   var validations by remember { mutableStateOf<List<FactValidation>>(emptyList()) }
   var analysis by remember { mutableStateOf<SignalAnalysis?>(null) }
   var formMessage by remember { mutableStateOf<String?>(null) }
+  var isAnalyzing by remember { mutableStateOf(false) }
+  val coroutineScope = rememberCoroutineScope()
 
   SignalTheme {
     when (screen) {
@@ -69,6 +73,7 @@ fun SignalApp(gateway: JudgeGateway = LocalJudgeGateway) {
         facts = facts,
         validations = validations,
         message = formMessage,
+        isAnalyzing = isAnalyzing,
         onBack = { screen = Screen.LANDING },
         onChange = { index, value ->
           facts = facts.mapIndexed { itemIndex, fact -> if (itemIndex == index) value else fact }
@@ -89,27 +94,43 @@ fun SignalApp(gateway: JudgeGateway = LocalJudgeGateway) {
             inputErrors.isNotEmpty() -> formMessage = "短すぎるFactがあります。出来事をもう少し具体的に書いてください。"
             cleaned.size != cleaned.distinct().size -> formMessage = "同じFactが重複しています。"
             else -> {
-              val checked = gateway.validate(cleaned)
-              validations = checked
-              if (checked.any { it.status != FactStatus.OBSERVABLE }) {
-                formMessage = "解釈を含むFactがあります。実際に起きたことへ書き換えてください。"
-              } else {
-                analysis = gateway.analyze(cleaned)
-                screen = Screen.RESULT
+              isAnalyzing = true
+              formMessage = null
+              coroutineScope.launch {
+                try {
+                  val checked = gateway.validate(cleaned)
+                  validations = checked
+                  if (checked.any { it.status != FactStatus.OBSERVABLE }) {
+                    formMessage = "解釈を含むFactがあります。実際に起きたことへ書き換えてください。"
+                  } else {
+                    analysis = gateway.analyze(cleaned)
+                    screen = Screen.RESULT
+                  }
+                } catch (error: JudgeGatewayException) {
+                  formMessage = error.userMessageJa
+                } catch (_: Throwable) {
+                  formMessage = "分析を開始できませんでした。入力内容は保持されています。"
+                } finally {
+                  isAnalyzing = false
+                }
               }
             }
           }
         },
       )
-      Screen.RESULT -> ResultScreen(
-        analysis = analysis ?: gateway.analyze(emptyList()),
-        onAddFact = { screen = Screen.FACTS },
-        onHistory = { screen = Screen.HISTORY },
-      )
-      Screen.HISTORY -> HistoryScreen(
-        analysis = analysis ?: gateway.analyze(emptyList()),
-        onBack = { screen = Screen.RESULT },
-      )
+      Screen.RESULT -> analysis?.let { currentAnalysis ->
+        ResultScreen(
+          analysis = currentAnalysis,
+          onAddFact = { screen = Screen.FACTS },
+          onHistory = { screen = Screen.HISTORY },
+        )
+      } ?: LandingScreen(onStart = { screen = Screen.FACTS })
+      Screen.HISTORY -> analysis?.let { currentAnalysis ->
+        HistoryScreen(
+          analysis = currentAnalysis,
+          onBack = { screen = Screen.RESULT },
+        )
+      } ?: LandingScreen(onStart = { screen = Screen.FACTS })
     }
   }
 }
@@ -196,6 +217,7 @@ private fun FactScreen(
   facts: List<String>,
   validations: List<FactValidation>,
   message: String?,
+  isAnalyzing: Boolean,
   onBack: () -> Unit,
   onChange: (Int, String) -> Unit,
   onAdd: () -> Unit,
@@ -267,11 +289,12 @@ private fun FactScreen(
       }
       Spacer(Modifier.height(22.dp))
       GlossyButton(
-        "この内容でSIGNALを見る  →",
+        if (isAnalyzing) "CRUSH.SYS 接続中..." else "この内容でSIGNALを見る  →",
         SignalColors.Pink,
         SignalColors.Purple,
         onAnalyze,
         modifier = Modifier.fillMaxWidth(),
+        enabled = !isAnalyzing,
       )
       val filled = facts.count { normalizeFact(it).isNotEmpty() }
       Spacer(Modifier.height(10.dp))
