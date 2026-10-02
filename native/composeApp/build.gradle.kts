@@ -35,6 +35,7 @@ kotlin {
       implementation(compose.material3)
       implementation(compose.ui)
       implementation(compose.components.resources)
+      implementation("org.jetbrains.compose.ui:ui-tooling-preview:1.12.1")
     }
     commonTest.dependencies {
       implementation(kotlin("test"))
