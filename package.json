@@ -12,7 +12,10 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "quality:dead-code": "npx --yes knip@6.39.0",
+    "quality:cycles": "npx --yes dependency-cruiser@18.5.0 src --include-only '^src' --config .dependency-cruiser.cjs",
+    "quality:bundle": "node scripts/check-bundle-size.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
