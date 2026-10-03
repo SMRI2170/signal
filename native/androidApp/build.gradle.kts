@@ -7,7 +7,7 @@ plugins {
 val signalApiBaseUrl = providers
   .gradleProperty("SIGNAL_API_BASE_URL")
   .orElse(providers.environmentVariable("SIGNAL_API_BASE_URL"))
-  .orElse("")
+  .orElse("https://deufcadognkhymqxrejo.supabase.co/functions/v1/signal-api")
   .get()
   .replace("\\", "\\\\")
   .replace("\"", "\\\"")

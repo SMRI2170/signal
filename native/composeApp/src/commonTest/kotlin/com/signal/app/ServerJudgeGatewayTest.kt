@@ -15,6 +15,7 @@ import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.runTest
+import kotlinx.io.IOException
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -104,6 +105,38 @@ class ServerJudgeGatewayTest {
     assertEquals("RATE_LIMITED", error.code)
     assertEquals("request-123", error.requestId)
     assertEquals(false, error.retryable)
+    client.close()
+  }
+
+  @Test
+  fun mapsMalformedSuccessToJapaneseRetryableError() = runTest {
+    val client = mockClient { respondJson("""{"unexpected":true}""") }
+
+    val error = assertFailsWith<JudgeGatewayException> {
+      ServerJudgeGateway("https://signal.example", client).analyze(
+        listOf("十分に長いFactその一", "十分に長いFactその二", "十分に長いFactその三"),
+      )
+    }
+
+    assertEquals("INVALID_RESPONSE", error.code)
+    assertEquals("分析結果を読み込めませんでした。もう一度お試しください。", error.userMessageJa)
+    assertTrue(error.retryable)
+    client.close()
+  }
+
+  @Test
+  fun mapsOfflineFailureToJapaneseRetryableError() = runTest {
+    val client = mockClient { throw IOException("offline") }
+
+    val error = assertFailsWith<JudgeGatewayException> {
+      ServerJudgeGateway("https://signal.example", client).validate(
+        listOf("相手から来週空いているか聞かれた"),
+      )
+    }
+
+    assertEquals("NETWORK_ERROR", error.code)
+    assertEquals("通信を確認して、もう一度お試しください。入力内容は消えません。", error.userMessageJa)
+    assertTrue(error.retryable)
     client.close()
   }
 

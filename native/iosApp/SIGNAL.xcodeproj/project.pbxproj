@@ -279,6 +279,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.signal.app;
 				PRODUCT_NAME = SIGNAL;
 				SDKROOT = iphoneos;
+				SIGNAL_API_BASE_URL = "https://deufcadognkhymqxrejo.supabase.co/functions/v1/signal-api";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -300,6 +301,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.signal.app;
 				PRODUCT_NAME = SIGNAL;
 				SDKROOT = iphoneos;
+				SIGNAL_API_BASE_URL = "https://deufcadognkhymqxrejo.supabase.co/functions/v1/signal-api";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;

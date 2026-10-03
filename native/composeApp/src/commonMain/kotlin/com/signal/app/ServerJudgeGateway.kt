@@ -13,7 +13,6 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlin.random.Random
 
@@ -139,7 +138,18 @@ class ServerJudgeGateway(
           requestId = apiError?.requestId,
         )
       }
-      return response.body()
+      try {
+        return response.body()
+      } catch (error: CancellationException) {
+        throw error
+      } catch (error: Throwable) {
+        throw JudgeGatewayException(
+          code = "INVALID_RESPONSE",
+          userMessageJa = "分析結果を読み込めませんでした。もう一度お試しください。",
+          retryable = true,
+          cause = error,
+        )
+      }
     } catch (error: CancellationException) {
       throw error
     } catch (error: JudgeGatewayException) {
@@ -151,15 +161,6 @@ class ServerJudgeGateway(
         ),
       )
       throw error
-    } catch (error: SerializationException) {
-      throw report(
-        JudgeGatewayException(
-          code = "INVALID_RESPONSE",
-          userMessageJa = "分析結果を読み込めませんでした。もう一度お試しください。",
-          retryable = true,
-          cause = error,
-        ),
-      )
     } catch (error: Throwable) {
       throw report(
         JudgeGatewayException(
