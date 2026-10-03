@@ -27,6 +27,10 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - name: Detect dead code and unused dependencies
+        run: npm run quality:dead-code
+      - name: Detect circular dependencies
+        run: npm run quality:cycles
 
   semgrep:
     name: Semgrep SAST
@@ -98,6 +102,8 @@ jobs:
           if [ -f src/proxy.ts ]; then mv src/proxy.ts .github/pages-proxy.ts; fi
           if [ -d src/app/relationships ]; then mv src/app/relationships .github/pages-relationships; fi
       - run: npm run build
+      - name: Enforce JavaScript bundle budget
+        run: npm run quality:bundle
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: ./out
