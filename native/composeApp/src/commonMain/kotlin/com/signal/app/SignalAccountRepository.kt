@@ -29,7 +29,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -53,10 +52,29 @@ data class SavedSnapshot(
   val createdAt: String,
 )
 
+data class RelationshipSummary(
+  val id: String,
+  val displayName: String,
+  val signalLevel: Int?,
+  val updatedAt: String,
+)
+
+data class ReanalysisDraft(
+  val relationshipId: String,
+  val text: String,
+)
+
 @Serializable
 private data class PendingGuestDraft(
   val displayName: String,
   val facts: List<String>,
+  val idempotencyKey: String,
+)
+
+@Serializable
+private data class PendingReanalysisDraft(
+  val relationshipId: String,
+  val text: String,
   val idempotencyKey: String,
 )
 
@@ -71,20 +89,32 @@ class SignalAccountRepository internal constructor(
   private val promotionMutex = Mutex()
   private val _state = MutableStateFlow<AccountState>(AccountState.Initializing)
   private val _relationship = MutableStateFlow<SavedRelationship?>(null)
+  private val _relationships = MutableStateFlow<List<RelationshipSummary>>(emptyList())
+  private val _reanalysisDraft = MutableStateFlow<ReanalysisDraft?>(null)
   private val _message = MutableStateFlow<String?>(null)
 
   val state: StateFlow<AccountState> = _state.asStateFlow()
   val relationship: StateFlow<SavedRelationship?> = _relationship.asStateFlow()
+  val relationships: StateFlow<List<RelationshipSummary>> = _relationships.asStateFlow()
+  val reanalysisDraft: StateFlow<ReanalysisDraft?> = _reanalysisDraft.asStateFlow()
   val message: StateFlow<String?> = _message.asStateFlow()
 
   init {
+    scope.launch {
+      _reanalysisDraft.value = readReanalysisDraft()?.toDomain()
+    }
     scope.launch {
       supabase.auth.sessionStatus.collectLatest { status ->
         when (status) {
           SessionStatus.Initializing -> _state.value = AccountState.Initializing
           is SessionStatus.NotAuthenticated -> {
-            _state.value = AccountState.SignedOut()
-            if (status.isSignOut) _relationship.value = null
+            if (_state.value !is AccountState.ReauthenticationRequired) {
+              _state.value = AccountState.SignedOut()
+            }
+            if (status.isSignOut) {
+              _relationship.value = null
+              _relationships.value = emptyList()
+            }
           }
           is SessionStatus.RefreshFailure -> {
             _state.value = AccountState.ReauthenticationRequired(
@@ -94,6 +124,8 @@ class SignalAccountRepository internal constructor(
           is SessionStatus.Authenticated -> {
             _state.value = AccountState.SignedIn(status.session.user?.email)
             promotePendingDraft()
+            promotePendingReanalysis()
+            refreshRelationships()
             restoreLastRelationship()
           }
         }
@@ -113,8 +145,71 @@ class SignalAccountRepository internal constructor(
     store.write(PENDING_DRAFT_KEY, json.encodeToString(PendingGuestDraft.serializer(), draft))
     if (_state.value is AccountState.SignedIn) {
       promotePendingDraft()
+      refreshRelationships()
       restoreLastRelationship()
     }
+  }
+
+  suspend fun saveReanalysisDraft(relationshipId: String, text: String) {
+    val normalized = normalizeFact(text)
+    val previous = readReanalysisDraft()
+    val draft = PendingReanalysisDraft(
+      relationshipId = relationshipId,
+      text = normalized,
+      idempotencyKey = previous
+        ?.takeIf { it.relationshipId == relationshipId && it.text == normalized }
+        ?.idempotencyKey
+        ?: newSignalUuid(),
+    )
+    store.write(REANALYSIS_DRAFT_KEY, json.encodeToString(PendingReanalysisDraft.serializer(), draft))
+    _reanalysisDraft.value = draft.toDomain()
+  }
+
+  suspend fun appendFact(relationshipId: String, text: String): Boolean {
+    val normalized = normalizeFact(text)
+    val inputError = factInputError(normalized)
+    if (inputError != null || normalized.isEmpty()) {
+      _message.value = inputError ?: "起きたことを入力してください。"
+      return false
+    }
+    saveReanalysisDraft(relationshipId, normalized)
+    if (_state.value !is AccountState.SignedIn) {
+      _state.value = AccountState.ReauthenticationRequired(
+        "Factは端末に残っています。保存するには、もう一度ログインしてください。",
+      )
+      return false
+    }
+    val saved = promotePendingReanalysis()
+    if (saved) {
+      refreshRelationships()
+      selectRelationship(relationshipId)
+    }
+    return saved
+  }
+
+  suspend fun selectRelationship(relationshipId: String): Boolean {
+    val token = supabase.auth.currentAccessTokenOrNull() ?: return false
+    val restored = requestRelationship(token, relationshipId) ?: return false
+    store.write(LAST_RELATIONSHIP_KEY, restored.id)
+    _relationship.value = null
+    _relationship.value = restored.toDomain()
+    return true
+  }
+
+  suspend fun refreshRelationships() {
+    val token = supabase.auth.currentAccessTokenOrNull() ?: return
+    val response = runCatching {
+      client.get("$apiBaseUrl/api/relationships/summaries") {
+        header(HttpHeaders.Authorization, "Bearer $token")
+      }
+    }.getOrNull() ?: return
+    if (response.status.value == 401) {
+      requireReauthentication("ログインの有効期限が切れました。もう一度ログインしてください。")
+      return
+    }
+    if (!response.status.isSuccess()) return
+    val envelope = runCatching { response.body<RelationshipSummariesResponse>() }.getOrNull() ?: return
+    _relationships.value = envelope.relationships.map { it.toDomain() }
   }
 
   suspend fun sendMagicLink(email: String) {
@@ -170,7 +265,10 @@ class SignalAccountRepository internal constructor(
       supabase.auth.clearSession()
       store.delete(LAST_RELATIONSHIP_KEY)
       store.delete(PENDING_DRAFT_KEY)
+      store.delete(REANALYSIS_DRAFT_KEY)
       _relationship.value = null
+      _relationships.value = emptyList()
+      _reanalysisDraft.value = null
       _state.value = AccountState.SignedOut("ログアウトしました。")
     }
   }
@@ -223,6 +321,48 @@ class SignalAccountRepository internal constructor(
     }
   }
 
+  private suspend fun promotePendingReanalysis(): Boolean = promotionMutex.withLock {
+    val draft = readReanalysisDraft() ?: return@withLock false
+    val token = supabase.auth.currentAccessTokenOrNull() ?: return@withLock false
+    _message.value = "新しいFactからSIGNALを更新しています…"
+    val response = runCatching {
+      client.post("$apiBaseUrl/api/relationships/${draft.relationshipId}/analyses") {
+        contentType(ContentType.Application.Json)
+        header(HttpHeaders.Authorization, "Bearer $token")
+        setBody(
+          ReanalysisRequest(
+            facts = listOf(FactRequest(clientFactId = newSignalUuid(), text = draft.text)),
+            idempotencyKey = draft.idempotencyKey,
+          ),
+        )
+      }
+    }.getOrElse {
+      _message.value = "更新できませんでした。Factは端末に残っています。通信を確認して再試行してください。"
+      return@withLock false
+    }
+    if (response.status.value == 401) {
+      requireReauthentication(
+        "ログインの有効期限が切れました。Factは端末に残っています。もう一度ログインしてください。",
+      )
+      return@withLock false
+    }
+    if (!response.status.isSuccess()) {
+      val error = runCatching { response.body<AccountApiErrorEnvelope>().error.message }.getOrNull()
+      _message.value = error ?: "更新できませんでした。Factは端末に残っています。"
+      return@withLock false
+    }
+    val saved = runCatching { response.body<ReanalysisResponse>() }.getOrNull()
+    if (saved == null) {
+      _message.value = "更新結果を確認できませんでした。Factは端末に残っています。"
+      return@withLock false
+    }
+    store.write(LAST_RELATIONSHIP_KEY, draft.relationshipId)
+    store.delete(REANALYSIS_DRAFT_KEY)
+    _reanalysisDraft.value = null
+    _message.value = "SIGNALを更新しました。履歴に新しいSnapshotを追加しました。"
+    true
+  }
+
   private suspend fun restoreLastRelationship() {
     val token = supabase.auth.currentAccessTokenOrNull() ?: return
     val storedId = store.read(LAST_RELATIONSHIP_KEY)
@@ -230,10 +370,17 @@ class SignalAccountRepository internal constructor(
       ?: if (storedId != null) requestRelationship(token, null) else null
     if (restored == null) {
       if (storedId != null) store.delete(LAST_RELATIONSHIP_KEY)
+      _relationship.value = null
       return
     }
     store.write(LAST_RELATIONSHIP_KEY, restored.id)
     _relationship.value = restored.toDomain()
+  }
+
+  private suspend fun requireReauthentication(message: String) {
+    supabase.auth.clearSession()
+    _message.value = message
+    _state.value = AccountState.ReauthenticationRequired(message)
   }
 
   private suspend fun requestRelationship(token: String, id: String?): RelationshipResponse? {
@@ -242,10 +389,7 @@ class SignalAccountRepository internal constructor(
       client.get("$apiBaseUrl$path") { header(HttpHeaders.Authorization, "Bearer $token") }
     }.getOrNull() ?: return null
     if (response.status.value == 401) {
-      supabase.auth.clearSession()
-      _state.value = AccountState.ReauthenticationRequired(
-        "ログインの有効期限が切れました。もう一度ログインしてください。",
-      )
+      requireReauthentication("ログインの有効期限が切れました。もう一度ログインしてください。")
       return null
     }
     if (!response.status.isSuccess()) return null
@@ -260,6 +404,28 @@ class SignalAccountRepository internal constructor(
         null
       }
   }
+
+  private suspend fun readReanalysisDraft(): PendingReanalysisDraft? {
+    val stored = store.read(REANALYSIS_DRAFT_KEY) ?: return null
+    return runCatching { json.decodeFromString(PendingReanalysisDraft.serializer(), stored) }
+      .getOrElse {
+        store.delete(REANALYSIS_DRAFT_KEY)
+        _reanalysisDraft.value = null
+        null
+      }
+  }
+
+  private fun PendingReanalysisDraft.toDomain() = ReanalysisDraft(
+    relationshipId = relationshipId,
+    text = text,
+  )
+
+  private fun RelationshipSummaryResponse.toDomain() = RelationshipSummary(
+    id = id,
+    displayName = displayName,
+    signalLevel = signalLevel,
+    updatedAt = updatedAt,
+  )
 
   private fun RelationshipResponse.toDomain() = SavedRelationship(
     id = id,
@@ -280,6 +446,7 @@ class SignalAccountRepository internal constructor(
 
   private companion object {
     const val PENDING_DRAFT_KEY = "pending_guest_draft"
+    const val REANALYSIS_DRAFT_KEY = "pending_reanalysis_draft"
     const val LAST_RELATIONSHIP_KEY = "last_relationship_id"
     const val AUTH_SCHEME = "com.signal.app"
     const val AUTH_HOST = "login-callback"
@@ -327,6 +494,28 @@ private data class FactRequest(val clientFactId: String, val text: String)
 
 @Serializable
 private data class SaveRelationshipResponse(val relationshipId: String)
+
+@Serializable
+private data class ReanalysisRequest(
+  val facts: List<FactRequest>,
+  val idempotencyKey: String,
+)
+
+@Serializable
+private data class ReanalysisResponse(val snapshotId: String)
+
+@Serializable
+private data class RelationshipSummariesResponse(
+  val relationships: List<RelationshipSummaryResponse>,
+)
+
+@Serializable
+private data class RelationshipSummaryResponse(
+  val id: String,
+  val displayName: String,
+  val signalLevel: Int?,
+  val updatedAt: String,
+)
 
 @Serializable
 private data class RelationshipResponse(

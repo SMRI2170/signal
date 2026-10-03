@@ -81,10 +81,10 @@ function isFactInput(value: unknown): value is FactInput {
     candidate.text.trim().length <= 300;
 }
 
-function parseFacts(body: unknown, minimum: number): FactInput[] | null {
+function parseFacts(body: unknown, minimum: number, maximum = 10): FactInput[] | null {
   if (!body || typeof body !== "object") return null;
   const facts = (body as Record<string, unknown>).facts;
-  if (!Array.isArray(facts) || facts.length < minimum || facts.length > 10 || !facts.every(isFactInput)) {
+  if (!Array.isArray(facts) || facts.length < minimum || facts.length > maximum || !facts.every(isFactInput)) {
     return null;
   }
   return facts.map((fact) => ({ ...fact, text: fact.text.trim() }));
@@ -329,12 +329,97 @@ async function saveRelationship(userId: string, body: unknown) {
 type RelationshipRow = { id: string; display_name: string; updated_at: string };
 type FactRow = { text_original: string; created_at: string };
 type SnapshotRow = {
+  relationship_id?: string;
   romantic_interest: number;
   desire_to_meet: number;
   initiative: number;
   evidence_sufficiency: number;
   created_at: string;
 };
+
+async function listRelationships(userId: string) {
+  const filters = new URLSearchParams({
+    select: "id,display_name,updated_at",
+    user_id: `eq.${userId}`,
+    order: "updated_at.desc",
+    limit: "20",
+  });
+  const relationships = await (await serviceRoleRequest(`relationships?${filters}`)).json() as RelationshipRow[];
+  if (relationships.length === 0) return [];
+
+  const ids = relationships.map((relationship) => relationship.id).join(",");
+  const snapshotFilters = new URLSearchParams({
+    select: "relationship_id,romantic_interest,created_at",
+    relationship_id: `in.(${ids})`,
+    order: "created_at.desc",
+  });
+  const snapshots = await (await serviceRoleRequest(`analysis_snapshots?${snapshotFilters}`)).json() as SnapshotRow[];
+  const latestByRelationship = new Map<string, SnapshotRow>();
+  for (const snapshot of snapshots) {
+    if (snapshot.relationship_id && !latestByRelationship.has(snapshot.relationship_id)) {
+      latestByRelationship.set(snapshot.relationship_id, snapshot);
+    }
+  }
+  return relationships.map((relationship) => {
+    const latest = latestByRelationship.get(relationship.id);
+    return {
+      id: relationship.id,
+      displayName: relationship.display_name,
+      signalLevel: latest?.romantic_interest ?? null,
+      updatedAt: relationship.updated_at,
+    };
+  });
+}
+
+async function appendFactAndAnalysis(userId: string, relationshipId: string, body: unknown) {
+  const newFacts = parseFacts(body, 1, 1);
+  if (!newFacts || !body || typeof body !== "object") return { error: "INVALID_REQUEST" as const };
+  const candidate = body as Record<string, unknown>;
+  if (typeof candidate.idempotencyKey !== "string" || !UUID_PATTERN.test(candidate.idempotencyKey)) {
+    return { error: "INVALID_REQUEST" as const };
+  }
+
+  const existing = await loadRelationship(userId, relationshipId);
+  if (!existing) return { error: "NOT_FOUND" as const };
+  const existingFacts: FactInput[] = existing.facts.map((fact) => ({
+    clientFactId: crypto.randomUUID(),
+    text: fact.text,
+  }));
+  const factsForAnalysis = [...existingFacts, ...newFacts];
+  if (factsForAnalysis.length > 30) return { error: "FACT_LIMIT_REACHED" as const };
+
+  const judge = createJudge();
+  const validations = await validateFacts(judge, newFacts);
+  if (validations.some((validation) => validation.status !== "observable")) {
+    return { error: "FACT_NOT_OBSERVABLE" as const };
+  }
+  const analysis = await analyzeFacts(judge, factsForAnalysis);
+  const response = await serviceRoleRequest("rpc/append_facts_and_analysis", {
+    method: "POST",
+    body: JSON.stringify({
+      p_user_id: userId,
+      p_relationship_id: relationshipId,
+      p_facts: newFacts.map((fact, index) => ({
+        text_original: fact.text,
+        text_english: validations[index]?.translatedFactEn,
+      })),
+      p_analysis: {
+        romanticInterest: analysis.scores.romanticInterest,
+        desireToMeet: analysis.scores.desireToMeet,
+        initiative: analysis.scores.initiative,
+        evidenceSufficiency: analysis.scores.evidenceSufficiency,
+        modelVersion: analysis.modelVersion,
+        rubricVersion: analysis.rubricVersion,
+      },
+      p_idempotency_key: candidate.idempotencyKey,
+    }),
+  });
+  const snapshotId = await response.json();
+  if (typeof snapshotId !== "string" || !UUID_PATTERN.test(snapshotId)) {
+    throw new Error("Database returned an invalid snapshot id");
+  }
+  return { snapshotId, analysis };
+}
 
 async function loadRelationship(userId: string, requestedId: string | null) {
   const filters = new URLSearchParams({
@@ -389,14 +474,21 @@ Deno.serve(async (request) => {
     ? "preview"
     : null;
   const relationshipBaseRoute = pathname.endsWith("/api/relationships");
+  const relationshipListRoute = pathname.endsWith("/api/relationships/summaries");
   const relationshipId = pathname.match(/\/api\/relationships\/([0-9a-f-]{36})$/i)?.[1] ?? null;
-  const relationshipRoute = relationshipBaseRoute || (relationshipId !== null && UUID_PATTERN.test(relationshipId));
+  const reanalysisId = pathname.match(/\/api\/relationships\/([0-9a-f-]{36})\/analyses$/i)?.[1] ?? null;
+  const relationshipRoute = relationshipBaseRoute || relationshipListRoute ||
+    (relationshipId !== null && UUID_PATTERN.test(relationshipId)) ||
+    (reanalysisId !== null && UUID_PATTERN.test(reanalysisId));
   if (!judgeRoute && !relationshipRoute) {
     return apiError("NOT_FOUND", "APIが見つかりません。", 404, requestId, origin);
   }
 
   if (relationshipRoute) {
-    if (request.method !== "GET" && !(request.method === "POST" && relationshipBaseRoute)) {
+    const supportsGet = relationshipBaseRoute || relationshipListRoute || relationshipId !== null;
+    const supportsPost = relationshipBaseRoute || reanalysisId !== null;
+    if ((request.method === "GET" && !supportsGet) || (request.method === "POST" && !supportsPost) ||
+      (request.method !== "GET" && request.method !== "POST")) {
       return apiError("METHOD_NOT_ALLOWED", "対応していない操作です。", 405, requestId, origin);
     }
     let userId: string | null;
@@ -419,6 +511,9 @@ Deno.serve(async (request) => {
 
     if (request.method === "GET") {
       try {
+        if (relationshipListRoute) {
+          return jsonResponse({ relationships: await listRelationships(userId) }, 200, requestId, origin);
+        }
         const relationship = await loadRelationship(userId, relationshipId);
         if (!relationship) return apiError("NOT_FOUND", "保存した記録が見つかりません。", 404, requestId, origin);
         return jsonResponse(relationship, 200, requestId, origin);
@@ -461,10 +556,18 @@ Deno.serve(async (request) => {
 
     const body = await request.json().catch(() => null);
     try {
-      const result = await saveRelationship(userId, body);
+      const result = reanalysisId
+        ? await appendFactAndAnalysis(userId, reanalysisId, body)
+        : await saveRelationship(userId, body);
       if ("error" in result) {
         if (result.error === "FACT_NOT_OBSERVABLE") {
           return apiError("FACT_NOT_OBSERVABLE", "観測可能なFactに書き換えてください。", 422, requestId, origin);
+        }
+        if (result.error === "NOT_FOUND") {
+          return apiError("NOT_FOUND", "保存した記録が見つかりません。", 404, requestId, origin);
+        }
+        if (result.error === "FACT_LIMIT_REACHED") {
+          return apiError("FACT_LIMIT_REACHED", "この記録はFactの上限30件に達しました。", 422, requestId, origin);
         }
         return apiError("INVALID_REQUEST", "保存内容を確認してください。", 400, requestId, origin);
       }

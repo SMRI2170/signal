@@ -23,9 +23,11 @@ import com.signal.app.ui.theme.SignalColors
 fun SignalTape(
   scores: List<Int>,
   dates: List<String>,
+  deltas: List<Int?> = List(scores.size) { null },
   modifier: Modifier = Modifier,
 ) {
   require(scores.size == dates.size) { "scores and dates must have equal size" }
+  require(scores.size == deltas.size) { "scores and deltas must have equal size" }
   StickerPaper(modifier) {
     Text("SIGNAL TAPE", color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 10.sp, letterSpacing = 1.sp)
     Canvas(Modifier.fillMaxWidth().height(142.dp).padding(top = 15.dp)) {
@@ -54,7 +56,10 @@ fun SignalTape(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
           Text(date, color = SignalColors.Muted, fontWeight = FontWeight.Bold, fontSize = 9.sp)
           Text(
-            if (index == scores.lastIndex) "${scores[index]} ↑" else scores[index].toString(),
+            deltas[index]?.let { delta ->
+              val prefix = if (delta > 0) "+" else ""
+              "${scores[index]}  $prefix$delta"
+            } ?: scores[index].toString(),
             color = if (index == scores.lastIndex) SignalColors.Pink else SignalColors.Ink,
             fontWeight = FontWeight.Black,
             fontSize = 13.sp,
