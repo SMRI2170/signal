@@ -52,6 +52,12 @@ cd native
 
 Android APKは`androidApp/build/outputs/apk/debug/androidApp-debug.apk`に出力されます。iOSは`MainViewController()`をXcodeプロジェクトのroot viewへ接続します。
 
+## Android beta release
+
+署名済みAPKは、`android-v0.2.0-beta.1`形式のタグをpushするとGitHub Actionsが作成します。PRと通常の`main`更新ではdebugとminified releaseのビルドを検証し、署名鍵はActions Secretsからのみ読み込みます。署名鍵の設定・バックアップ・配布手順は[`docs/android-beta-release.md`](docs/android-beta-release.md)を参照してください。
+
+タグReleaseではAndroid emulator上でmacrobenchmarkも実行し、計測レポートをActions artifactに30日間保存します。エミュレータの絶対値は実機性能を保証するものではなく、同じCI環境内での回帰確認に使います。
+
 ## iOS Simulator
 
 先にFrameworkを生成してから、Xcodeプロジェクトを生成します。

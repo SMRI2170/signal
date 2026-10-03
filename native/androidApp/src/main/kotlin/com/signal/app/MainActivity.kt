@@ -25,6 +25,8 @@ class MainActivity : ComponentActivity() {
       SignalApp(
         gateway = gateway,
         accountRepository = accountRepository,
+        benchmarkMode = BuildConfig.SIGNAL_BENCHMARK_MODE ||
+          intent.getBooleanExtra(BENCHMARK_RESULT_EXTRA, false),
       )
     }
   }
@@ -33,5 +35,9 @@ class MainActivity : ComponentActivity() {
     super.onNewIntent(intent)
     setIntent(intent)
     intent.dataString?.let(accountRepository::receiveDeepLink)
+  }
+
+  private companion object {
+    const val BENCHMARK_RESULT_EXTRA = "com.signal.app.BENCHMARK_RESULT"
   }
 }
