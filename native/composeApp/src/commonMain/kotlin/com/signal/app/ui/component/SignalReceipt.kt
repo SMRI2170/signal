@@ -1,5 +1,7 @@
 package com.signal.app.ui.component
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +16,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +44,11 @@ fun SignalReceipt(
   evidenceSufficiency: Int,
   modifier: Modifier = Modifier,
 ) {
+  val animatedScore = remember(score) { Animatable(0f) }
+  LaunchedEffect(score) {
+    animatedScore.animateTo(score.toFloat(), animationSpec = tween(durationMillis = 700))
+  }
+  val displayedScore = animatedScore.value.toInt().coerceIn(0, score)
   ChromeBezel(modifier) {
     GelPanel {
       Column(
@@ -53,7 +62,7 @@ fun SignalReceipt(
         Text("SIGNAL LEVEL", color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
         Row(verticalAlignment = Alignment.Bottom) {
           Text(
-            score.toString(),
+            displayedScore.toString(),
             color = SignalColors.Ink,
             fontSize = 86.sp,
             lineHeight = 78.sp,
@@ -69,7 +78,7 @@ fun SignalReceipt(
             modifier = Modifier.padding(start = 9.dp, bottom = 8.dp),
           )
         }
-        SignalMeter(score)
+        SignalMeter(displayedScore)
         Spacer(Modifier.height(12.dp))
         SignalHeartMeter(score)
         Spacer(Modifier.height(13.dp))
@@ -82,7 +91,7 @@ fun SignalReceipt(
             .padding(horizontal = 8.dp, vertical = 6.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-          Text("↑ +${(score - 62).coerceAtLeast(1)}", color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 18.sp)
+          Text("↑ +${(displayedScore - 62).coerceAtLeast(1)}", color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 18.sp)
           Text("LAST SCAN\nJUST NOW", color = SignalColors.Muted, fontWeight = FontWeight.Black, fontSize = 8.sp, lineHeight = 10.sp, textAlign = TextAlign.End)
         }
         Spacer(Modifier.height(13.dp))

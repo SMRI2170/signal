@@ -64,11 +64,36 @@ private enum class Screen { LANDING, HOME, FACTS, ADD_FACT, RESULT, HISTORY, AUT
 fun SignalApp(
   gateway: JudgeGateway = LocalJudgeGateway,
   accountRepository: SignalAccountRepository? = null,
+  benchmarkMode: Boolean = false,
 ) {
-  var screen by remember { mutableStateOf(Screen.LANDING) }
-  var facts by remember { mutableStateOf(List(3) { "" }) }
+  var screen by remember { mutableStateOf(if (benchmarkMode) Screen.RESULT else Screen.LANDING) }
+  var facts by remember {
+    mutableStateOf(
+      if (benchmarkMode) {
+        listOf(
+          "相手から来週空いているか聞かれた",
+          "帰宅後に相手からメッセージが来た",
+          "相手が次に行く店を提案した",
+        )
+      } else {
+        List(3) { "" }
+      },
+    )
+  }
   var validations by remember { mutableStateOf<List<FactValidation>>(emptyList()) }
-  var analysis by remember { mutableStateOf<SignalAnalysis?>(null) }
+  var analysis by remember {
+    mutableStateOf(
+      if (benchmarkMode) {
+        SignalAnalysis(
+          scores = SignalScores(73, 81, 68, 57),
+          statusLabel = "GOOD SIGNAL",
+          factCount = 3,
+        )
+      } else {
+        null
+      },
+    )
+  }
   var formMessage by remember { mutableStateOf<String?>(null) }
   var isAnalyzing by remember { mutableStateOf(false) }
   var relationshipName by remember { mutableStateOf("アプリの人") }
