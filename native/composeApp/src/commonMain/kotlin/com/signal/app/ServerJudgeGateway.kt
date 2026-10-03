@@ -78,7 +78,7 @@ class ServerJudgeGateway(
   private val baseUrl = apiBaseUrl.trimEnd('/')
 
   override suspend fun validate(facts: List<String>): List<FactValidation> {
-    val inputs = facts.map { FactInputDto(clientFactId = newClientFactId(), text = it) }
+    val inputs = facts.map { FactInputDto(clientFactId = newSignalUuid(), text = it) }
     val response = post<List<FactValidationDto>>(
       path = "/api/facts/validate",
       payload = FactsRequestDto(inputs),
@@ -102,7 +102,7 @@ class ServerJudgeGateway(
   }
 
   override suspend fun analyze(facts: List<String>): SignalAnalysis {
-    val inputs = facts.map { FactInputDto(clientFactId = newClientFactId(), text = it) }
+    val inputs = facts.map { FactInputDto(clientFactId = newSignalUuid(), text = it) }
     val response = post<AnalysisResultDto>(
       path = "/api/analyses/preview",
       payload = FactsRequestDto(inputs),
@@ -249,7 +249,7 @@ private data class ApiErrorDto(
   val retryable: Boolean = false,
 )
 
-private fun newClientFactId(): String {
+internal fun newSignalUuid(): String {
   val hex = "0123456789abcdef"
   val raw = CharArray(32) { hex[Random.nextInt(hex.length)] }
   raw[12] = '4'

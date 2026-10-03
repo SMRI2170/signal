@@ -11,10 +11,13 @@ val signalApiBaseUrl = providers
   .get()
   .replace("\\", "\\\\")
   .replace("\"", "\\\"")
+val signalSupabaseUrl = "https://deufcadognkhymqxrejo.supabase.co"
+val signalSupabasePublishableKey = "sb_publishable_RBON1FbtOwYjqWxoiywYkg_WAz5-AFh"
 
 dependencies {
   implementation(project(":composeApp"))
   implementation("androidx.activity:activity-compose:1.12.4")
+  implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
   implementation(compose.runtime)
 }
 
@@ -29,6 +32,8 @@ android {
     versionCode = 1
     versionName = "0.1.0"
     buildConfigField("String", "SIGNAL_API_BASE_URL", "\"$signalApiBaseUrl\"")
+    buildConfigField("String", "SIGNAL_SUPABASE_URL", "\"$signalSupabaseUrl\"")
+    buildConfigField("String", "SIGNAL_SUPABASE_PUBLISHABLE_KEY", "\"$signalSupabasePublishableKey\"")
   }
 
   buildFeatures {

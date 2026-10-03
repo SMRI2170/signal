@@ -19,7 +19,11 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,18 +57,44 @@ import com.signal.app.ui.theme.SignalTheme
 import com.signal.app.ui.theme.blackOffsetShadow
 import kotlinx.coroutines.launch
 
-private enum class Screen { LANDING, FACTS, RESULT, HISTORY }
+private enum class Screen { LANDING, FACTS, RESULT, HISTORY, AUTH }
 
 /** Shared iOS / Android application. It intentionally contains no API secret. */
 @Composable
-fun SignalApp(gateway: JudgeGateway = LocalJudgeGateway) {
+fun SignalApp(
+  gateway: JudgeGateway = LocalJudgeGateway,
+  accountRepository: SignalAccountRepository? = null,
+) {
   var screen by remember { mutableStateOf(Screen.LANDING) }
   var facts by remember { mutableStateOf(List(3) { "" }) }
   var validations by remember { mutableStateOf<List<FactValidation>>(emptyList()) }
   var analysis by remember { mutableStateOf<SignalAnalysis?>(null) }
   var formMessage by remember { mutableStateOf<String?>(null) }
   var isAnalyzing by remember { mutableStateOf(false) }
+  var relationshipName by remember { mutableStateOf("アプリの人") }
+  var authEmail by remember { mutableStateOf("") }
   val coroutineScope = rememberCoroutineScope()
+  val accountState = accountRepository?.state?.collectAsState()?.value ?: AccountState.SignedOut()
+  val restoredRelationship = accountRepository?.relationship?.collectAsState()?.value
+  val accountMessage = accountRepository?.message?.collectAsState()?.value
+
+  LaunchedEffect(restoredRelationship?.id) {
+    restoredRelationship?.let { restored ->
+      val latest = restored.snapshots.lastOrNull() ?: return@let
+      facts = restored.facts.ifEmpty { List(3) { "" } }
+      relationshipName = restored.displayName
+      analysis = SignalAnalysis(
+        scores = latest.scores,
+        statusLabel = when {
+          latest.scores.signalLevel >= 70 -> "GOOD SIGNAL"
+          latest.scores.signalLevel >= 45 -> "SIGNAL CHECK"
+          else -> "LOW SIGNAL"
+        },
+        factCount = restored.facts.size,
+      )
+      screen = Screen.RESULT
+    }
+  }
 
   SignalTheme {
     when (screen) {
@@ -121,6 +151,23 @@ fun SignalApp(gateway: JudgeGateway = LocalJudgeGateway) {
       Screen.RESULT -> analysis?.let { currentAnalysis ->
         ResultScreen(
           analysis = currentAnalysis,
+          accountState = accountState,
+          accountMessage = accountMessage,
+          isSaved = restoredRelationship != null,
+          onSave = {
+            val repository = accountRepository
+            if (repository == null) {
+              formMessage = "このPreviewではクラウド保存を利用できません。"
+            } else {
+              coroutineScope.launch {
+                repository.stageGuestResult(facts, relationshipName)
+                if (accountState !is AccountState.SignedIn) screen = Screen.AUTH
+              }
+            }
+          },
+          onLogout = accountRepository?.let { repository ->
+            { coroutineScope.launch { repository.signOut() } }
+          },
           onAddFact = { screen = Screen.FACTS },
           onHistory = { screen = Screen.HISTORY },
         )
@@ -131,6 +178,31 @@ fun SignalApp(gateway: JudgeGateway = LocalJudgeGateway) {
           onBack = { screen = Screen.RESULT },
         )
       } ?: LandingScreen(onStart = { screen = Screen.FACTS })
+      Screen.AUTH -> AuthScreen(
+        email = authEmail,
+        relationshipName = relationshipName,
+        state = accountState,
+        message = accountMessage,
+        onEmailChange = { authEmail = it.take(120) },
+        onRelationshipNameChange = { relationshipName = it.take(80) },
+        onBack = { screen = Screen.RESULT },
+        onMagicLink = {
+          accountRepository?.let { repository ->
+            coroutineScope.launch {
+              repository.stageGuestResult(facts, relationshipName)
+              repository.sendMagicLink(authEmail)
+            }
+          }
+        },
+        onGoogle = {
+          accountRepository?.let { repository ->
+            coroutineScope.launch {
+              repository.stageGuestResult(facts, relationshipName)
+              repository.signInWithGoogle()
+            }
+          }
+        },
+      )
     }
   }
 }
@@ -316,6 +388,11 @@ private fun FactScreen(
 @Composable
 private fun ResultScreen(
   analysis: SignalAnalysis,
+  accountState: AccountState,
+  accountMessage: String?,
+  isSaved: Boolean,
+  onSave: () -> Unit,
+  onLogout: (() -> Unit)?,
   onAddFact: () -> Unit,
   onHistory: () -> Unit,
 ) {
@@ -356,6 +433,41 @@ private fun ResultScreen(
         )
         Spacer(Modifier.height(24.dp))
         GlossyButton(
+          if (isSaved) "SAVED TO CLOUD  ✓" else "この記録を残す  ↗",
+          SignalColors.Yellow,
+          SignalColors.Pink,
+          onSave,
+          modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+          if (isSaved) "FactとSIGNALの履歴を保存済み。次回もここから続けられます。"
+          else "保存する時だけログイン。Fact・スコア・記録名をクラウドへ保存します。",
+          color = SignalColors.White,
+          fontSize = 11.sp,
+          fontWeight = FontWeight.Bold,
+          lineHeight = 17.sp,
+          textAlign = TextAlign.Center,
+          modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
+        )
+        accountMessage?.let { message ->
+          Text(
+            message,
+            color = SignalColors.Ink,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Black,
+            lineHeight = 17.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(top = 10.dp)
+              .clip(SignalShapes.Control)
+              .background(SignalColors.White.copy(alpha = .82f))
+              .border(2.dp, SignalColors.Ink, SignalShapes.Control)
+              .padding(10.dp),
+          )
+        }
+        Spacer(Modifier.height(16.dp))
+        GlossyButton(
           "+ FACTを追加",
           SignalColors.Lime,
           SignalColors.Cyan,
@@ -371,9 +483,164 @@ private fun ResultScreen(
           textAlign = TextAlign.Center,
           modifier = Modifier.fillMaxWidth().clickable(onClick = onHistory),
         )
+        if (accountState is AccountState.SignedIn && onLogout != null) {
+          Spacer(Modifier.height(18.dp))
+          Text(
+            "LOG OUT",
+            color = SignalColors.White,
+            fontWeight = FontWeight.Black,
+            fontSize = 11.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onLogout),
+          )
+        }
         Spacer(Modifier.height(34.dp))
       }
     }
+  }
+}
+
+@Composable
+private fun AuthScreen(
+  email: String,
+  relationshipName: String,
+  state: AccountState,
+  message: String?,
+  onEmailChange: (String) -> Unit,
+  onRelationshipNameChange: (String) -> Unit,
+  onBack: () -> Unit,
+  onMagicLink: () -> Unit,
+  onGoogle: () -> Unit,
+) {
+  DotField(colors = listOf(SignalColors.Pink, SignalColors.Purple, SignalColors.Cyan)) {
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .windowInsetsPadding(WindowInsets.safeDrawing)
+        .verticalScroll(rememberScrollState())
+        .padding(horizontal = 20.dp),
+    ) {
+      Row(
+        Modifier.fillMaxWidth().padding(top = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+      ) {
+        Text("SIGNAL", color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 21.sp, letterSpacing = (-2).sp)
+        Text("‹ BACK", color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 12.sp, modifier = Modifier.clickable(onClick = onBack))
+      }
+      Spacer(Modifier.height(38.dp))
+      StatusChip("SAVE YOUR SIGNAL")
+      Spacer(Modifier.height(10.dp))
+      Text(
+        "この恋の記録を、\n次回へつなげよう。",
+        color = SignalColors.White,
+        fontWeight = FontWeight.Black,
+        fontSize = 39.sp,
+        lineHeight = 40.sp,
+        letterSpacing = (-4).sp,
+        style = blackOffsetShadow(3.dp),
+      )
+      Spacer(Modifier.height(18.dp))
+      Column(
+        Modifier
+          .fillMaxWidth()
+          .clip(SignalShapes.Panel)
+          .background(SignalColors.White.copy(alpha = .9f))
+          .border(3.dp, SignalColors.Ink, SignalShapes.Panel)
+          .padding(16.dp),
+      ) {
+        Text("CLOUD SAVE", color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 11.sp, letterSpacing = 1.sp)
+        Spacer(Modifier.height(7.dp))
+        Text(
+          "保存するもの：入力したFact、SIGNALスコア、記録名。メールアドレスはログインと本人確認に使います。",
+          color = SignalColors.Ink,
+          fontWeight = FontWeight.Bold,
+          fontSize = 13.sp,
+          lineHeight = 20.sp,
+        )
+      }
+      Spacer(Modifier.height(16.dp))
+      SignalTextField(
+        value = relationshipName,
+        onValueChange = onRelationshipNameChange,
+        label = "この記録の名前",
+        placeholder = "アプリの人",
+      )
+      Spacer(Modifier.height(12.dp))
+      SignalTextField(
+        value = email,
+        onValueChange = onEmailChange,
+        label = "メールアドレス",
+        placeholder = "you@example.com",
+      )
+      Spacer(Modifier.height(15.dp))
+      GlossyButton(
+        if (state is AccountState.AwaitingMagicLink) "メールを確認してね  ♡" else "MAGIC LINKを送る  ↗",
+        SignalColors.Lime,
+        SignalColors.Cyan,
+        onMagicLink,
+        modifier = Modifier.fillMaxWidth(),
+      )
+      Spacer(Modifier.height(12.dp))
+      GlossyButton(
+        "GOOGLEで続ける",
+        SignalColors.White,
+        SignalColors.Purple,
+        onGoogle,
+        modifier = Modifier.fillMaxWidth(),
+      )
+      val statusMessage = when (state) {
+        AccountState.Initializing -> "保存済みのログイン状態を確認しています…"
+        is AccountState.SignedOut -> state.messageJa
+        is AccountState.AwaitingMagicLink -> "${state.email} に送信しました。メールのリンクから戻ってきてください。"
+        is AccountState.SignedIn -> "ログインしました。記録を保存しています…"
+        is AccountState.ReauthenticationRequired -> state.messageJa
+      }
+      (message ?: statusMessage)?.let { copy ->
+        Spacer(Modifier.height(14.dp))
+        Text(
+          copy,
+          color = SignalColors.Ink,
+          fontWeight = FontWeight.Black,
+          fontSize = 12.sp,
+          lineHeight = 18.sp,
+          modifier = Modifier
+            .fillMaxWidth()
+            .clip(SignalShapes.Control)
+            .background(SignalColors.Yellow)
+            .border(2.dp, SignalColors.Ink, SignalShapes.Control)
+            .padding(11.dp),
+        )
+      }
+      Spacer(Modifier.height(34.dp))
+    }
+  }
+}
+
+@Composable
+private fun SignalTextField(
+  value: String,
+  onValueChange: (String) -> Unit,
+  label: String,
+  placeholder: String,
+) {
+  Column(Modifier.fillMaxWidth()) {
+    Text(label, color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 11.sp)
+    Spacer(Modifier.height(5.dp))
+    OutlinedTextField(
+      value = value,
+      onValueChange = onValueChange,
+      placeholder = { Text(placeholder, color = SignalColors.Muted) },
+      singleLine = true,
+      shape = SignalShapes.Control,
+      colors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = SignalColors.White,
+        unfocusedContainerColor = SignalColors.White.copy(alpha = .9f),
+        focusedBorderColor = SignalColors.Ink,
+        unfocusedBorderColor = SignalColors.Ink,
+        cursorColor = SignalColors.Purple,
+      ),
+      modifier = Modifier.fillMaxWidth(),
+    )
   }
 }
 

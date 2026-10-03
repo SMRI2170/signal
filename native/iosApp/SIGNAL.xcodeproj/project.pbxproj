@@ -280,6 +280,8 @@
 				PRODUCT_NAME = SIGNAL;
 				SDKROOT = iphoneos;
 				SIGNAL_API_BASE_URL = "https://deufcadognkhymqxrejo.supabase.co/functions/v1/signal-api";
+				SIGNAL_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_RBON1FbtOwYjqWxoiywYkg_WAz5-AFh";
+				SIGNAL_SUPABASE_URL = "https://deufcadognkhymqxrejo.supabase.co";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -302,6 +304,8 @@
 				PRODUCT_NAME = SIGNAL;
 				SDKROOT = iphoneos;
 				SIGNAL_API_BASE_URL = "https://deufcadognkhymqxrejo.supabase.co/functions/v1/signal-api";
+				SIGNAL_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_RBON1FbtOwYjqWxoiywYkg_WAz5-AFh";
+				SIGNAL_SUPABASE_URL = "https://deufcadognkhymqxrejo.supabase.co";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;

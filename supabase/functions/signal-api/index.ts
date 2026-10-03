@@ -37,8 +37,8 @@ const encoder = new TextEncoder();
 
 function corsHeaders(origin: string | null) {
   const headers: Record<string, string> = {
-    "Access-Control-Allow-Headers": "content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "authorization, content-type",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
@@ -212,7 +212,7 @@ async function sha256(value: string) {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function consumeRateLimit(request: Request, scope: "validate" | "preview", limit: number) {
+async function consumeRateLimit(request: Request, scope: "validate" | "preview" | "save", limit: number) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const pepper = Deno.env.get("RATE_LIMIT_PEPPER");
@@ -237,6 +237,141 @@ async function consumeRateLimit(request: Request, scope: "validate" | "preview",
   return await response.json() === true;
 }
 
+function serviceConfiguration() {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) throw new Error("Supabase service is not configured");
+  return { supabaseUrl, anonKey, serviceRoleKey };
+}
+
+async function authenticatedUserId(request: Request) {
+  const authorization = request.headers.get("authorization");
+  if (!authorization?.startsWith("Bearer ")) return null;
+  const { supabaseUrl, anonKey } = serviceConfiguration();
+  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    headers: { apikey: anonKey, Authorization: authorization },
+  });
+  if (!response.ok) return null;
+  const user = await response.json().catch(() => null) as { id?: unknown } | null;
+  return typeof user?.id === "string" && UUID_PATTERN.test(user.id) ? user.id : null;
+}
+
+async function serviceRoleRequest(path: string, init: RequestInit = {}) {
+  const { supabaseUrl, serviceRoleKey } = serviceConfiguration();
+  const response = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
+    ...init,
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`,
+      "Content-Type": "application/json",
+      ...(init.headers ?? {}),
+    },
+  });
+  if (!response.ok) throw new Error(`Database request failed with status ${response.status}`);
+  return response;
+}
+
+function parseRelationshipRequest(body: unknown) {
+  const facts = parseFacts(body, 3);
+  if (!facts || !body || typeof body !== "object") return null;
+  const candidate = body as Record<string, unknown>;
+  if (
+    typeof candidate.displayName !== "string" ||
+    candidate.displayName.trim().length < 1 ||
+    candidate.displayName.trim().length > 80 ||
+    typeof candidate.idempotencyKey !== "string" ||
+    !UUID_PATTERN.test(candidate.idempotencyKey)
+  ) return null;
+  return {
+    facts,
+    displayName: candidate.displayName.trim(),
+    idempotencyKey: candidate.idempotencyKey,
+  };
+}
+
+async function saveRelationship(userId: string, body: unknown) {
+  const input = parseRelationshipRequest(body);
+  if (!input) return { error: "INVALID_REQUEST" as const };
+  const judge = createJudge();
+  const validations = await validateFacts(judge, input.facts);
+  if (validations.some((validation) => validation.status !== "observable")) {
+    return { error: "FACT_NOT_OBSERVABLE" as const };
+  }
+  const analysis = await analyzeFacts(judge, input.facts);
+  const response = await serviceRoleRequest("rpc/create_initial_relationship_analysis", {
+    method: "POST",
+    body: JSON.stringify({
+      p_user_id: userId,
+      p_display_name: input.displayName,
+      p_facts: input.facts.map((fact, index) => ({
+        text_original: fact.text,
+        text_english: validations[index]?.translatedFactEn,
+      })),
+      p_analysis: {
+        romanticInterest: analysis.scores.romanticInterest,
+        desireToMeet: analysis.scores.desireToMeet,
+        initiative: analysis.scores.initiative,
+        evidenceSufficiency: analysis.scores.evidenceSufficiency,
+        modelVersion: analysis.modelVersion,
+        rubricVersion: analysis.rubricVersion,
+      },
+      p_idempotency_key: input.idempotencyKey,
+    }),
+  });
+  const relationshipId = await response.json();
+  if (typeof relationshipId !== "string" || !UUID_PATTERN.test(relationshipId)) {
+    throw new Error("Database returned an invalid relationship id");
+  }
+  return { relationshipId, analysis };
+}
+
+type RelationshipRow = { id: string; display_name: string; updated_at: string };
+type FactRow = { text_original: string; created_at: string };
+type SnapshotRow = {
+  romantic_interest: number;
+  desire_to_meet: number;
+  initiative: number;
+  evidence_sufficiency: number;
+  created_at: string;
+};
+
+async function loadRelationship(userId: string, requestedId: string | null) {
+  const filters = new URLSearchParams({
+    select: "id,display_name,updated_at",
+    user_id: `eq.${userId}`,
+    limit: "1",
+  });
+  if (requestedId) filters.set("id", `eq.${requestedId}`);
+  else filters.set("order", "updated_at.desc");
+  const relationshipRows = await (await serviceRoleRequest(`relationships?${filters}`)).json() as RelationshipRow[];
+  const relationship = relationshipRows[0];
+  if (!relationship) return null;
+
+  const relationFilter = encodeURIComponent(`eq.${relationship.id}`);
+  const [facts, snapshots] = await Promise.all([
+    serviceRoleRequest(
+      `facts?select=text_original,created_at&relationship_id=${relationFilter}&order=created_at.asc`,
+    ).then((response) => response.json() as Promise<FactRow[]>),
+    serviceRoleRequest(
+      `analysis_snapshots?select=romantic_interest,desire_to_meet,initiative,evidence_sufficiency,created_at&relationship_id=${relationFilter}&order=created_at.asc`,
+    ).then((response) => response.json() as Promise<SnapshotRow[]>),
+  ]);
+  return {
+    id: relationship.id,
+    displayName: relationship.display_name,
+    updatedAt: relationship.updated_at,
+    facts: facts.map((fact) => ({ text: fact.text_original, createdAt: fact.created_at })),
+    snapshots: snapshots.map((snapshot) => ({
+      signalLevel: snapshot.romantic_interest,
+      desireToMeet: snapshot.desire_to_meet,
+      initiative: snapshot.initiative,
+      evidenceSufficiency: snapshot.evidence_sufficiency,
+      createdAt: snapshot.created_at,
+    })),
+  };
+}
+
 Deno.serve(async (request) => {
   const requestId = crypto.randomUUID();
   const origin = request.headers.get("origin");
@@ -246,22 +381,115 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders(origin) });
   }
-  if (request.method !== "POST") {
-    return apiError("METHOD_NOT_ALLOWED", "POSTで送信してください。", 405, requestId, origin);
-  }
 
   const pathname = new URL(request.url).pathname;
-  const route = pathname.endsWith("/api/facts/validate")
+  const judgeRoute = pathname.endsWith("/api/facts/validate")
     ? "validate"
     : pathname.endsWith("/api/analyses/preview")
     ? "preview"
     : null;
-  if (!route) return apiError("NOT_FOUND", "APIが見つかりません。", 404, requestId, origin);
+  const relationshipBaseRoute = pathname.endsWith("/api/relationships");
+  const relationshipId = pathname.match(/\/api\/relationships\/([0-9a-f-]{36})$/i)?.[1] ?? null;
+  const relationshipRoute = relationshipBaseRoute || (relationshipId !== null && UUID_PATTERN.test(relationshipId));
+  if (!judgeRoute && !relationshipRoute) {
+    return apiError("NOT_FOUND", "APIが見つかりません。", 404, requestId, origin);
+  }
+
+  if (relationshipRoute) {
+    if (request.method !== "GET" && !(request.method === "POST" && relationshipBaseRoute)) {
+      return apiError("METHOD_NOT_ALLOWED", "対応していない操作です。", 405, requestId, origin);
+    }
+    let userId: string | null;
+    try {
+      userId = await authenticatedUserId(request);
+    } catch (error) {
+      console.error(`[${requestId}] auth_unavailable`, error instanceof Error ? error.name : "unknown");
+      return apiError(
+        "AUTH_UNAVAILABLE",
+        "ログイン状態を確認できませんでした。もう一度お試しください。",
+        503,
+        requestId,
+        origin,
+        true,
+      );
+    }
+    if (!userId) {
+      return apiError("AUTH_REQUIRED", "ログイン後に保存してください。", 401, requestId, origin);
+    }
+
+    if (request.method === "GET") {
+      try {
+        const relationship = await loadRelationship(userId, relationshipId);
+        if (!relationship) return apiError("NOT_FOUND", "保存した記録が見つかりません。", 404, requestId, origin);
+        return jsonResponse(relationship, 200, requestId, origin);
+      } catch (error) {
+        console.error(`[${requestId}] relationship_load_unavailable`, error instanceof Error ? error.name : "unknown");
+        return apiError(
+          "LOAD_UNAVAILABLE",
+          "保存した記録を読み込めませんでした。もう一度お試しください。",
+          503,
+          requestId,
+          origin,
+          true,
+        );
+      }
+    }
+
+    try {
+      const allowed = await consumeRateLimit(request, "save", 5);
+      if (!allowed) {
+        return apiError(
+          "RATE_LIMITED",
+          "保存回数の上限です。しばらく待ってからお試しください。",
+          429,
+          requestId,
+          origin,
+          true,
+        );
+      }
+    } catch (error) {
+      console.error(`[${requestId}] rate_limit_unavailable`, error instanceof Error ? error.message : "unknown");
+      return apiError(
+        "SERVICE_UNAVAILABLE",
+        "現在サービスに接続できません。少し待ってからもう一度お試しください。",
+        503,
+        requestId,
+        origin,
+        true,
+      );
+    }
+
+    const body = await request.json().catch(() => null);
+    try {
+      const result = await saveRelationship(userId, body);
+      if ("error" in result) {
+        if (result.error === "FACT_NOT_OBSERVABLE") {
+          return apiError("FACT_NOT_OBSERVABLE", "観測可能なFactに書き換えてください。", 422, requestId, origin);
+        }
+        return apiError("INVALID_REQUEST", "保存内容を確認してください。", 400, requestId, origin);
+      }
+      return jsonResponse(result, 200, requestId, origin);
+    } catch (error) {
+      console.error(`[${requestId}] relationship_save_unavailable`, error instanceof Error ? error.name : "unknown");
+      return apiError(
+        "SAVE_UNAVAILABLE",
+        "保存を完了できませんでした。入力内容は端末に残っています。",
+        503,
+        requestId,
+        origin,
+        true,
+      );
+    }
+  }
+
+  if (request.method !== "POST") {
+    return apiError("METHOD_NOT_ALLOWED", "POSTで送信してください。", 405, requestId, origin);
+  }
 
   try {
-    const allowed = await consumeRateLimit(request, route, route === "validate" ? 20 : 10);
+    const allowed = await consumeRateLimit(request, judgeRoute, judgeRoute === "validate" ? 20 : 10);
     if (!allowed) {
-      const message = route === "validate"
+      const message = judgeRoute === "validate"
         ? "しばらく待ってからもう一度お試しください。"
         : "分析回数の上限です。しばらく待ってからお試しください。";
       return apiError("RATE_LIMITED", message, 429, requestId, origin, true);
@@ -279,10 +507,12 @@ Deno.serve(async (request) => {
   }
 
   const body = await request.json().catch(() => null);
-  const facts = parseFacts(body, route === "validate" ? 1 : 3);
+  const facts = parseFacts(body, judgeRoute === "validate" ? 1 : 3);
   if (!facts) {
-    const code = route === "validate" ? "INVALID_REQUEST" : "INSUFFICIENT_FACTS";
-    const message = route === "validate" ? "入力内容を確認してください。" : "3件以上のFactを入力してください。";
+    const code = judgeRoute === "validate" ? "INVALID_REQUEST" : "INSUFFICIENT_FACTS";
+    const message = judgeRoute === "validate"
+      ? "入力内容を確認してください。"
+      : "3件以上のFactを入力してください。";
     return apiError(code, message, 400, requestId, origin);
   }
 
@@ -302,7 +532,7 @@ Deno.serve(async (request) => {
       true,
     );
   }
-  if (route === "validate") return jsonResponse(validations, 200, requestId, origin);
+  if (judgeRoute === "validate") return jsonResponse(validations, 200, requestId, origin);
   if (validations.some((validation) => validation.status !== "observable")) {
     return apiError("FACT_NOT_OBSERVABLE", "観測可能なFactに書き換えてください。", 422, requestId, origin);
   }

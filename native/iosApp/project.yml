@@ -18,6 +18,8 @@ targets:
         PRODUCT_NAME: SIGNAL
         INFOPLIST_FILE: Sources/Info.plist
         SIGNAL_API_BASE_URL: https://deufcadognkhymqxrejo.supabase.co/functions/v1/signal-api
+        SIGNAL_SUPABASE_URL: https://deufcadognkhymqxrejo.supabase.co
+        SIGNAL_SUPABASE_PUBLISHABLE_KEY: sb_publishable_RBON1FbtOwYjqWxoiywYkg_WAz5-AFh
         FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../composeApp/build/bin/iosSimulatorArm64/debugFramework"
     dependencies:
       - framework: ../composeApp/build/bin/iosSimulatorArm64/debugFramework/SignalShared.framework

@@ -42,6 +42,7 @@ kotlin {
       implementation("io.ktor:ktor-client-core:$ktorVersion")
       implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
       implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
+      implementation("io.github.jan-tennert.supabase:auth-kt:3.8.0")
     }
     commonTest.dependencies {
       implementation(kotlin("test"))
@@ -53,6 +54,7 @@ kotlin {
     }
     iosMain.dependencies {
       implementation("io.ktor:ktor-client-darwin:$ktorVersion")
+      implementation("com.russhwolf:multiplatform-settings:1.3.0")
     }
   }
 }
