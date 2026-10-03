@@ -2,6 +2,7 @@ package com.signal.app
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.post
@@ -68,7 +69,34 @@ fun createJudgeGateway(
     ?.trimEnd('/')
     ?.takeIf(String::isNotEmpty)
     ?.let { ServerJudgeGateway(it, diagnostics = diagnostics) }
-    ?: LocalJudgeGateway
+    ?: UnconfiguredJudgeGateway(diagnostics)
+
+private class UnconfiguredJudgeGateway(
+  private val diagnostics: GatewayDiagnostics,
+) : JudgeGateway {
+  override suspend fun validate(facts: List<String>): List<FactValidation> = throw configurationError()
+
+  override suspend fun analyze(facts: List<String>): SignalAnalysis = throw configurationError()
+
+  private fun configurationError() = report(
+    JudgeGatewayException(
+      code = "CONFIGURATION_ERROR",
+      userMessageJa = "接続先の設定を確認できません。入力内容は保持されています。",
+      retryable = false,
+    ),
+  )
+
+  private fun report(error: JudgeGatewayException): JudgeGatewayException {
+    diagnostics.onFailure(
+      GatewayFailureDiagnostic(
+        code = error.code,
+        retryable = error.retryable,
+        requestId = error.requestId,
+      ),
+    )
+    return error
+  }
+}
 
 class ServerJudgeGateway(
   apiBaseUrl: String,
@@ -84,16 +112,18 @@ class ServerJudgeGateway(
       payload = FactsRequestDto(inputs),
     )
     val factsById = inputs.associate { it.clientFactId to it.text }
-    return response.map { result ->
+    if (
+      response.size != inputs.size ||
+      response.map(FactValidationDto::clientFactId).distinct().size != inputs.size ||
+      response.any { it.clientFactId !in factsById }
+    ) {
+      throw report(invalidResponse())
+    }
+    return inputs.map { input ->
+      val result = response.firstOrNull { it.clientFactId == input.clientFactId }
+        ?: throw report(invalidResponse())
       FactValidation(
-        text = factsById[result.clientFactId]
-          ?: throw report(
-            JudgeGatewayException(
-              code = "INVALID_RESPONSE",
-              userMessageJa = "分析結果を読み込めませんでした。もう一度お試しください。",
-              retryable = true,
-            ),
-          ),
+        text = factsById.getValue(result.clientFactId),
         status = result.status.toDomain(),
         reasonJa = result.reasonJa,
         rewriteExampleJa = result.rewriteExampleJa,
@@ -107,6 +137,14 @@ class ServerJudgeGateway(
       path = "/api/analyses/preview",
       payload = FactsRequestDto(inputs),
     )
+    if (
+      response.scores.romanticInterest !in 0..100 ||
+      response.scores.desireToMeet !in 0..100 ||
+      response.scores.initiative !in 0..100 ||
+      response.scores.evidenceSufficiency !in 0..100
+    ) {
+      throw report(invalidResponse())
+    }
     return SignalAnalysis(
       scores = SignalScores(
         signalLevel = response.scores.romanticInterest,
@@ -131,10 +169,17 @@ class ServerJudgeGateway(
       }
       if (!response.status.isSuccess()) {
         val apiError = runCatching { response.body<ApiErrorEnvelopeDto>() }.getOrNull()?.error
+        val retryableStatus = response.status.value == 408 || response.status.value == 429 || response.status.value >= 500
+        val fallbackMessage = when (response.status.value) {
+          408 -> "通信に時間がかかっています。入力内容は保持されています。もう一度お試しください。"
+          429 -> "利用が集中しています。少し待ってからもう一度お試しください。入力内容は保持されています。"
+          in 400..499 -> "入力内容や利用状態を確認してください。入力内容は保持されています。"
+          else -> "サーバーで一時的な問題が起きています。少し待ってからもう一度お試しください。入力内容は保持されています。"
+        }
         throw JudgeGatewayException(
           code = apiError?.code ?: "HTTP_${response.status.value}",
-          userMessageJa = apiError?.message ?: "通信に失敗しました。少し待ってからもう一度お試しください。",
-          retryable = apiError?.retryable ?: (response.status.value >= 500),
+          userMessageJa = apiError?.message ?: fallbackMessage,
+          retryable = apiError?.retryable ?: retryableStatus,
           requestId = apiError?.requestId,
         )
       }
@@ -161,6 +206,15 @@ class ServerJudgeGateway(
         ),
       )
       throw error
+    } catch (error: HttpRequestTimeoutException) {
+      throw report(
+        JudgeGatewayException(
+          code = "TIMEOUT",
+          userMessageJa = "通信に時間がかかっています。入力内容は保持されています。もう一度お試しください。",
+          retryable = true,
+          cause = error,
+        ),
+      )
     } catch (error: Throwable) {
       throw report(
         JudgeGatewayException(
@@ -172,6 +226,12 @@ class ServerJudgeGateway(
       )
     }
   }
+
+  private fun invalidResponse() = JudgeGatewayException(
+    code = "INVALID_RESPONSE",
+    userMessageJa = "分析結果を読み込めませんでした。もう一度お試しください。",
+    retryable = true,
+  )
 
   private fun report(error: JudgeGatewayException): JudgeGatewayException {
     diagnostics.onFailure(

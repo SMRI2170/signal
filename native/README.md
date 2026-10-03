@@ -9,7 +9,7 @@ Kotlin Multiplatform / Compose MultiplatformによるiOS・Android向けアプ�
 
 デザイン方針は[`../docs/native-y2k-design-system.md`](../docs/native-y2k-design-system.md)、共通素材の検証方法は[`docs/y2k-foundation-verification.md`](docs/y2k-foundation-verification.md)を参照してください。Android Studioでは`Y2kComponentCatalog.kt`から360 / 390 / 430dpのPreviewを確認できます。
 
-このアプリは、APIキーを保持しません。通常のビルドは公開済みのSupabase Edge Functionへ接続し、TypeSafe AI / Jevのキーはサーバー側のSecretsだけで管理します。`SIGNAL_API_BASE_URL`が空の場合のみ、Preview・開発用の`LocalJudgeGateway`を使用します。TypeSafe AI / Jevのキーをネイティブアプリへ入れてはいけません。
+このアプリはAI providerのsecret keyを保持しません。通常のビルドは公開済みのSupabase Edge Functionへ接続し、TypeSafe AI / Jevのキーはサーバー側のSecretsだけで管理します。`SIGNAL_API_BASE_URL`が空の場合は設定エラーを表示して判定を止めます。ローカル判定の`LocalJudgeGateway`はPreview・unit testから明示的に注入する場合だけ使用します。TypeSafe AI / Jevのキーをネイティブアプリへ入れてはいけません。
 
 AndroidはGradle propertyまたはenvironment variableから公開API URLだけを注入します。
 
@@ -32,12 +32,12 @@ xcodebuild -project SIGNAL.xcodeproj -scheme SIGNAL SIGNAL_API_BASE_URL=https://
 公開APIをKtor Darwin経由で確認するiOS E2Eは、通常のCIでは外部通信を行いません。必要なときだけ次のように有効化します。
 
 ```bash
-SIGNAL_LIVE_E2E=1 \
-SIGNAL_API_BASE_URL=https://deufcadognkhymqxrejo.supabase.co/functions/v1/signal-api \
+SIMCTL_CHILD_SIGNAL_LIVE_E2E=1 \
+SIMCTL_CHILD_SIGNAL_API_BASE_URL=https://deufcadognkhymqxrejo.supabase.co/functions/v1/signal-api \
 ./gradlew :composeApp:iosSimulatorArm64Test --rerun-tasks
 ```
 
-どちらも値が空ならLocal gatewayへ戻るため、PreviewとオフラインのUI開発は継続できます。
+URLが空のまま実行すると設定エラーになります。PreviewとオフラインのUI開発では`SignalApp`へ`LocalJudgeGateway`を明示的に注入してください。
 
 ## Build
 

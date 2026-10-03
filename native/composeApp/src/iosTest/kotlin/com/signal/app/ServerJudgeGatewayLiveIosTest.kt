@@ -22,7 +22,14 @@ class ServerJudgeGatewayLiveIosTest {
     )
     val gateway = ServerJudgeGateway(apiBaseUrl)
 
-    val validations = gateway.validate(facts)
+    val validations = try {
+      gateway.validate(facts)
+    } catch (error: JudgeGatewayException) {
+      throw AssertionError(
+        "Live API validation failed (${error.code}); transport=${error.cause?.message ?: "no transport detail"}",
+        error,
+      )
+    }
     assertEquals(facts, validations.map(FactValidation::text))
     assertTrue(validations.all { it.status == FactStatus.OBSERVABLE })
 

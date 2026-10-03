@@ -5,6 +5,7 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.ContentType
@@ -14,12 +15,15 @@ import io.ktor.http.content.OutgoingContent
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.IOException
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ServerJudgeGatewayTest {
@@ -52,6 +56,74 @@ class ServerJudgeGatewayTest {
     assertEquals(FactStatus.OBSERVABLE, validation.status)
     assertEquals("観測できます。", validation.reasonJa)
     assertTrue(validation.text.isNotBlank())
+    client.close()
+  }
+
+  @Test
+  fun rejectsValidationResponseWithDuplicateFacts() = runTest {
+    val client = mockClient { request ->
+      val clientFactId = Regex("[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")
+        .find(request.bodyText())
+        ?.value
+        ?: error("Request does not contain an RFC 4122 clientFactId")
+      respondJson(
+        """
+        [
+          {
+            "clientFactId": "$clientFactId",
+            "status": "observable",
+            "reasonJa": "観測できます。"
+          },
+          {
+            "clientFactId": "$clientFactId",
+            "status": "observable",
+            "reasonJa": "重複です。"
+          }
+        ]
+        """.trimIndent(),
+      )
+    }
+
+    val error = assertFailsWith<JudgeGatewayException> {
+      ServerJudgeGateway("https://signal.example", client).validate(listOf("相手から次の予定を聞かれた"))
+    }
+
+    assertEquals("INVALID_RESPONSE", error.code)
+    assertTrue(error.retryable)
+    client.close()
+  }
+
+  @Test
+  fun rejectsValidationResponseMissingAFact() = runTest {
+    val client = mockClient { respondJson("[]") }
+
+    val error = assertFailsWith<JudgeGatewayException> {
+      ServerJudgeGateway("https://signal.example", client).validate(listOf("相手から次の予定を聞かれた"))
+    }
+
+    assertEquals("INVALID_RESPONSE", error.code)
+    client.close()
+  }
+
+  @Test
+  fun rejectsValidationResponseForUnknownFact() = runTest {
+    val client = mockClient {
+      respondJson(
+        """
+        [{
+          "clientFactId": "00000000-0000-4000-8000-000000000000",
+          "status": "observable",
+          "reasonJa": "観測できます。"
+        }]
+        """.trimIndent(),
+      )
+    }
+
+    val error = assertFailsWith<JudgeGatewayException> {
+      ServerJudgeGateway("https://signal.example", client).validate(listOf("相手から次の予定を聞かれた"))
+    }
+
+    assertEquals("INVALID_RESPONSE", error.code)
     client.close()
   }
 
@@ -125,6 +197,35 @@ class ServerJudgeGatewayTest {
   }
 
   @Test
+  fun rejectsOutOfRangeScores() = runTest {
+    val client = mockClient {
+      respondJson(
+        """
+        {
+          "scores": {
+            "romanticInterest": 101,
+            "desireToMeet": 81,
+            "initiative": 68,
+            "evidenceSufficiency": 57
+          },
+          "modelVersion": "test-model",
+          "rubricVersion": "test-rubric"
+        }
+        """.trimIndent(),
+      )
+    }
+
+    val error = assertFailsWith<JudgeGatewayException> {
+      ServerJudgeGateway("https://signal.example", client).analyze(
+        listOf("十分に長いFactその一", "十分に長いFactその二", "十分に長いFactその三"),
+      )
+    }
+
+    assertEquals("INVALID_RESPONSE", error.code)
+    client.close()
+  }
+
+  @Test
   fun mapsOfflineFailureToJapaneseRetryableError() = runTest {
     val client = mockClient { throw IOException("offline") }
 
@@ -140,10 +241,94 @@ class ServerJudgeGatewayTest {
     client.close()
   }
 
-  private fun mockClient(handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData): HttpClient =
+  @Test
+  fun mapsGenericClientAndServerErrorsToRecoverableJapaneseMessages() = runTest {
+    val cases = listOf(
+      HttpStatusCode.UnprocessableEntity to false,
+      HttpStatusCode.ServiceUnavailable to true,
+    )
+    for ((status, retryable) in cases) {
+      val client = mockClient {
+        respondJson("not-an-api-error", status)
+      }
+
+      val error = assertFailsWith<JudgeGatewayException> {
+        ServerJudgeGateway("https://signal.example", client).analyze(
+          listOf("十分に長いFactその一", "十分に長いFactその二", "十分に長いFactその三"),
+        )
+      }
+
+      assertEquals("HTTP_${status.value}", error.code)
+      assertEquals(retryable, error.retryable)
+      assertTrue(error.userMessageJa.contains("保持されています"))
+      client.close()
+    }
+  }
+
+  @Test
+  fun mapsRequestTimeoutToTypedRetryableError() = runTest {
+    val client = mockClient(requestTimeoutMillis = 100) {
+      delay(1_000)
+      respondJson("[]")
+    }
+
+    val error = assertFailsWith<JudgeGatewayException> {
+      ServerJudgeGateway("https://signal.example", client).validate(listOf("相手から次の予定を聞かれた"))
+    }
+
+    assertEquals("TIMEOUT", error.code)
+    assertTrue(error.retryable)
+    assertTrue(error.userMessageJa.contains("保持されています"))
+    client.close()
+  }
+
+  @Test
+  fun doesNotConvertCancellationIntoARecoverableNetworkError() = runTest {
+    val diagnostics = mutableListOf<GatewayFailureDiagnostic>()
+    val client = mockClient { throw CancellationException("cancelled by caller") }
+
+    assertFailsWith<CancellationException> {
+      ServerJudgeGateway("https://signal.example", client, GatewayDiagnostics(diagnostics::add))
+        .validate(listOf("相手から次の予定を聞かれた"))
+    }
+
+    assertTrue(diagnostics.isEmpty())
+    client.close()
+  }
+
+  @Test
+  fun missingServerUrlFailsClosedInsteadOfUsingLocalPreviewScoring() = runTest {
+    val diagnostics = mutableListOf<GatewayFailureDiagnostic>()
+    val gateway = createJudgeGateway("   ", GatewayDiagnostics(diagnostics::add))
+
+    assertFalse(gateway === LocalJudgeGateway)
+    val error = assertFailsWith<JudgeGatewayException> {
+      gateway.analyze(listOf("相手から次の予定を聞かれた"))
+    }
+    assertEquals("CONFIGURATION_ERROR", error.code)
+    assertFalse(error.retryable)
+    assertEquals(listOf("CONFIGURATION_ERROR"), diagnostics.map(GatewayFailureDiagnostic::code))
+  }
+
+  @Test
+  fun configuredGatewayUsesServerImplementation() {
+    val gateway = createJudgeGateway("https://signal.example/")
+
+    assertTrue(gateway is ServerJudgeGateway)
+  }
+
+  private fun mockClient(
+    requestTimeoutMillis: Long? = null,
+    handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
+  ): HttpClient =
     HttpClient(MockEngine(handler)) {
       install(ContentNegotiation) {
         json(Json { ignoreUnknownKeys = true; explicitNulls = false })
+      }
+      requestTimeoutMillis?.let { timeoutMillis ->
+        install(HttpTimeout) {
+          this.requestTimeoutMillis = timeoutMillis
+        }
       }
       expectSuccess = false
     }
