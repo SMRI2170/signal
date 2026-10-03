@@ -1,6 +1,6 @@
 import { useId, type CSSProperties } from "react";
 
-export type StickerType =
+type StickerType =
   | "heart"
   | "orb"
   | "star"
