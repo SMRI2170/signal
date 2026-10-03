@@ -495,7 +495,7 @@ Deno.serve(async (request) => {
     try {
       userId = await authenticatedUserId(request);
     } catch (error) {
-      console.error(`[${requestId}] auth_unavailable`, error instanceof Error ? error.name : "unknown");
+      console.error("auth_unavailable", { requestId, error: error instanceof Error ? error.name : "unknown" });
       return apiError(
         "AUTH_UNAVAILABLE",
         "ログイン状態を確認できませんでした。もう一度お試しください。",
@@ -518,7 +518,7 @@ Deno.serve(async (request) => {
         if (!relationship) return apiError("NOT_FOUND", "保存した記録が見つかりません。", 404, requestId, origin);
         return jsonResponse(relationship, 200, requestId, origin);
       } catch (error) {
-        console.error(`[${requestId}] relationship_load_unavailable`, error instanceof Error ? error.name : "unknown");
+        console.error("relationship_load_unavailable", { requestId, error: error instanceof Error ? error.name : "unknown" });
         return apiError(
           "LOAD_UNAVAILABLE",
           "保存した記録を読み込めませんでした。もう一度お試しください。",
@@ -543,7 +543,7 @@ Deno.serve(async (request) => {
         );
       }
     } catch (error) {
-      console.error(`[${requestId}] rate_limit_unavailable`, error instanceof Error ? error.message : "unknown");
+      console.error("rate_limit_unavailable", { requestId, error: error instanceof Error ? error.message : "unknown" });
       return apiError(
         "SERVICE_UNAVAILABLE",
         "現在サービスに接続できません。少し待ってからもう一度お試しください。",
@@ -573,7 +573,7 @@ Deno.serve(async (request) => {
       }
       return jsonResponse(result, 200, requestId, origin);
     } catch (error) {
-      console.error(`[${requestId}] relationship_save_unavailable`, error instanceof Error ? error.name : "unknown");
+      console.error("relationship_save_unavailable", { requestId, error: error instanceof Error ? error.name : "unknown" });
       return apiError(
         "SAVE_UNAVAILABLE",
         "保存を完了できませんでした。入力内容は端末に残っています。",
@@ -598,7 +598,7 @@ Deno.serve(async (request) => {
       return apiError("RATE_LIMITED", message, 429, requestId, origin, true);
     }
   } catch (error) {
-    console.error(`[${requestId}] rate_limit_unavailable`, error instanceof Error ? error.message : "unknown");
+    console.error("rate_limit_unavailable", { requestId, error: error instanceof Error ? error.message : "unknown" });
     return apiError(
       "SERVICE_UNAVAILABLE",
       "現在サービスに接続できません。少し待ってからもう一度お試しください。",
@@ -625,7 +625,7 @@ Deno.serve(async (request) => {
     judge = createJudge();
     validations = await validateFacts(judge, facts);
   } catch (error) {
-    console.error(`[${requestId}] validation_unavailable`, error instanceof Error ? error.name : "unknown");
+    console.error("validation_unavailable", { requestId, error: error instanceof Error ? error.name : "unknown" });
     return apiError(
       "VALIDATION_UNAVAILABLE",
       "現在判定が混み合っています。少し待ってからもう一度お試しください。",
@@ -642,7 +642,7 @@ Deno.serve(async (request) => {
   try {
     return jsonResponse(await analyzeFacts(judge, facts), 200, requestId, origin);
   } catch (error) {
-    console.error(`[${requestId}] analysis_unavailable`, error instanceof Error ? error.name : "unknown");
+    console.error("analysis_unavailable", { requestId, error: error instanceof Error ? error.name : "unknown" });
     return apiError(
       "ANALYSIS_UNAVAILABLE",
       "現在分析が混み合っています。少し待ってからもう一度お試しください。",
