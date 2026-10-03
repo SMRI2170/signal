@@ -1,16 +1,16 @@
 import { z } from "zod";
 
-export const factValidationStatusSchema = z.enum(["observable", "interpretation", "unclear"]);
-export type FactValidationStatus = z.infer<typeof factValidationStatusSchema>;
+const factValidationStatusSchema = z.enum(["observable", "interpretation", "unclear"]);
+type FactValidationStatus = z.infer<typeof factValidationStatusSchema>;
 
-export const impactCategorySchema = z.enum([
+const impactCategorySchema = z.enum([
   "strong_positive",
   "positive",
   "neutral",
   "negative",
   "strong_negative",
 ]);
-export type ImpactCategory = z.infer<typeof impactCategorySchema>;
+type ImpactCategory = z.infer<typeof impactCategorySchema>;
 
 export const factInputSchema = z.object({
   clientFactId: z.uuid(),
@@ -18,7 +18,7 @@ export const factInputSchema = z.object({
 });
 export type FactInput = z.infer<typeof factInputSchema>;
 
-export const factValidationResultSchema = z.object({
+const factValidationResultSchema = z.object({
   clientFactId: z.uuid(),
   status: factValidationStatusSchema,
   reasonJa: z.string(),
@@ -27,9 +27,9 @@ export const factValidationResultSchema = z.object({
 });
 export type FactValidationResult = z.infer<typeof factValidationResultSchema>;
 
-export const scoreSchema = z.number().int().min(0).max(100);
+const scoreSchema = z.number().int().min(0).max(100);
 
-export const analysisResultSchema = z.object({
+const analysisResultSchema = z.object({
   scores: z.object({
     romanticInterest: scoreSchema,
     desireToMeet: scoreSchema,
