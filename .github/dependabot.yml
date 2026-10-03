@@ -7,6 +7,12 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    # The current Next.js ESLint config rejects ESLint 10, and its TypeScript parser rejects TS 7.
+    ignore:
+      - dependency-name: eslint
+        update-types: [version-update:semver-major]
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
     groups:
       npm-minor-patch:
         update-types:

@@ -14,7 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "quality:dead-code": "npx --yes knip@6.39.0",
-    "quality:cycles": "npx --yes dependency-cruiser@18.5.0 src --include-only '^src' --config .dependency-cruiser.cjs",
+    "quality:cycles": "dependency-cruiser src --config .dependency-cruiser.cjs",
     "quality:bundle": "node scripts/check-bundle-size.mjs"
   },
   "dependencies": {
@@ -31,6 +31,7 @@
     "@types/node": "26.6.3",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "dependency-cruiser": "18.5.0",
     "eslint": "9.39.5",
     "eslint-config-next": "16.3.8",
     "prettier": "3.9.9",
@@ -40,9 +41,12 @@
   },
   "knip": {
     "entry": [
-      "src/**/*.{ts,tsx}",
-      "public/sw.js",
-      "supabase/functions/*/index.ts"
+      "src/**/*.{ts,tsx,css}",
+      "public/sw.js"
+    ],
+    "project": [
+      "src/**/*.{ts,tsx,css}",
+      "scripts/**/*.mjs"
     ],
     "ignoreDependencies": [
       "prettier"
