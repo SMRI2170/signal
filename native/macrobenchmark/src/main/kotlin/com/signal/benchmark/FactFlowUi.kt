@@ -6,6 +6,7 @@ import androidx.test.uiautomator.Until
 import androidx.test.uiautomator.onElement
 import androidx.test.uiautomator.onElements
 import androidx.test.uiautomator.textAsString
+import java.io.File
 
 private const val FACT_FIELD_CLASS = "android.widget.EditText"
 private val sampleFacts = listOf(
@@ -14,9 +15,25 @@ private val sampleFacts = listOf(
   "They suggested meeting again on Saturday",
 )
 
+private fun UiDevice.diagnose(reason: String) {
+  runCatching {
+    val dir = File("/sdcard/Pictures/baseline-profiles").apply { mkdirs() }
+    executeShellCommand("uiautomator dump ${File(dir, "ui-dump.xml").absolutePath}")
+    executeShellCommand("screencap -p ${File(dir, "screen.png").absolutePath}")
+    val pid = executeShellCommand("pidof com.signal.app").trim()
+    if (pid.isNotEmpty()) {
+      executeShellCommand("logcat -d --pid=$pid -t 400 > ${File(dir, "logcat.txt").absolutePath}")
+    }
+  }
+  System.err.println("[SignalBench] diagnose: $reason")
+}
+
 internal fun UiDevice.completeFactFlow(checkFactLogs: Boolean = false) {
   // Compose LANDING screen may take a few seconds to render on a cold emulator
   // boot. Wait for the entry button to appear before any click or scroll.
+  if (!wait(Until.hasObject(By.text("CHECK IT  ↗")), 10_000)) {
+    diagnose("LANDING entry button 'CHECK IT  ↗' not rendered within 10s")
+  }
   check(
     wait(Until.hasObject(By.text("CHECK IT  ↗")), 10_000),
   ) { "Expected the LANDING entry button ('CHECK IT  ↗') to render" }
