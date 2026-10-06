@@ -12,15 +12,18 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -34,6 +37,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.signal.app.ui.component.AddFactButton
@@ -41,6 +47,7 @@ import com.signal.app.ui.component.FactTicket
 import com.signal.app.ui.component.GlassPill
 import com.signal.app.ui.component.GlossyButton
 import com.signal.app.ui.component.RealityCheckSlip
+import com.signal.app.ui.component.FactToReceiptReveal
 import com.signal.app.ui.component.SignalReceipt
 import com.signal.app.ui.component.SignalTape
 import com.signal.app.ui.component.StatusChip
@@ -54,16 +61,20 @@ import com.signal.app.ui.sticker.ScannerOrb
 import com.signal.app.ui.theme.SignalColors
 import com.signal.app.ui.theme.SignalShapes
 import com.signal.app.ui.theme.SignalTheme
+import com.signal.app.ui.theme.SignalSkin
 import com.signal.app.ui.theme.blackOffsetShadow
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-private enum class Screen { LANDING, HOME, FACTS, ADD_FACT, RESULT, HISTORY, AUTH }
+private enum class Screen { LANDING, HOME, FACTS, ADD_FACT, RESULT, HISTORY, SNAPSHOT, AUTH }
 
 /** Shared iOS / Android application. It intentionally contains no API secret. */
 @Composable
 fun SignalApp(
   gateway: JudgeGateway = LocalJudgeGateway,
   accountRepository: SignalAccountRepository? = null,
+  onRevealCompositionsMeasured: ((Int) -> Unit)? = null,
 ) {
   var screen by remember { mutableStateOf(Screen.LANDING) }
   var facts by remember { mutableStateOf(List(3) { "" }) }
@@ -71,10 +82,18 @@ fun SignalApp(
   var analysis by remember { mutableStateOf<SignalAnalysis?>(null) }
   var formMessage by remember { mutableStateOf<String?>(null) }
   var isAnalyzing by remember { mutableStateOf(false) }
+  var analysisJob by remember { mutableStateOf<Job?>(null) }
+  var analysisGeneration by remember { mutableStateOf(0) }
+  var revealFact by remember { mutableStateOf<String?>(null) }
   var relationshipName by remember { mutableStateOf("アプリの人") }
   var resultRelationshipId by remember { mutableStateOf<String?>(null) }
+  var addFactAfterRelationshipSelection by remember { mutableStateOf<String?>(null) }
+  var selectedSnapshot by remember { mutableStateOf<SavedSnapshot?>(null) }
+  var selectedSnapshotDelta by remember { mutableStateOf<Int?>(null) }
+  var selectedSkin by remember { mutableStateOf(SignalSkin.BUBBLE_PINK) }
   var authEmail by remember { mutableStateOf("") }
   var newFact by remember { mutableStateOf("") }
+  var jevConsentAccepted by remember { mutableStateOf(false) }
   var addFactMessage by remember { mutableStateOf<String?>(null) }
   var isUpdating by remember { mutableStateOf(false) }
   val coroutineScope = rememberCoroutineScope()
@@ -84,12 +103,24 @@ fun SignalApp(
   val reanalysisDraft = accountRepository?.reanalysisDraft?.collectAsState()?.value
   val accountMessage = accountRepository?.message?.collectAsState()?.value
 
+  LaunchedEffect(accountRepository) {
+    selectedSkin = accountRepository?.preferredSkin() ?: SignalSkin.BUBBLE_PINK
+  }
+
+  val cancelAnalysis = {
+    analysisGeneration += 1
+    analysisJob?.cancel()
+    analysisJob = null
+    isAnalyzing = false
+    formMessage = "解析をキャンセルしました。入力したFactは保持されています。"
+  }
+
   LaunchedEffect(accountState) {
     if (accountState is AccountState.SignedIn && screen == Screen.LANDING) screen = Screen.HOME
     if (accountState is AccountState.ReauthenticationRequired && screen == Screen.ADD_FACT) screen = Screen.AUTH
   }
 
-  LaunchedEffect(restoredRelationship?.id, restoredRelationship?.snapshots?.lastOrNull()?.createdAt) {
+  LaunchedEffect(restoredRelationship?.id, restoredRelationship?.snapshots?.lastOrNull()?.createdAt, addFactAfterRelationshipSelection) {
     restoredRelationship?.let { restored ->
       val latest = restored.snapshots.lastOrNull() ?: return@let
       facts = restored.facts.ifEmpty { List(3) { "" } }
@@ -104,26 +135,47 @@ fun SignalApp(
         },
         factCount = restored.facts.size,
       )
-      if (screen == Screen.AUTH || screen == Screen.ADD_FACT) screen = Screen.RESULT
+      if (addFactAfterRelationshipSelection == restored.id) {
+        addFactAfterRelationshipSelection = null
+        screen = Screen.ADD_FACT
+      } else if (screen == Screen.AUTH || screen == Screen.ADD_FACT) {
+        screen = Screen.RESULT
+      }
     }
   }
 
   LaunchedEffect(reanalysisDraft?.relationshipId, restoredRelationship?.id) {
-    newFact = reanalysisDraft
-      ?.takeIf { it.relationshipId == restoredRelationship?.id }
-      ?.text
-      .orEmpty()
+    val draft = reanalysisDraft?.takeIf { it.relationshipId == restoredRelationship?.id }
+    newFact = draft?.text.orEmpty()
+    jevConsentAccepted = draft?.jevConsent == true
   }
 
-  SignalTheme {
+  SignalTheme(selectedSkin) {
     when (screen) {
       Screen.LANDING -> LandingScreen(onStart = { screen = Screen.FACTS })
       Screen.HOME -> CartridgeHomeScreen(
         relationships = relationships,
         message = accountMessage,
+        skin = selectedSkin,
+        onSkinChange = { skin ->
+          selectedSkin = skin
+          coroutineScope.launch { accountRepository?.savePreferredSkin(skin) }
+        },
         onOpen = { relationshipId ->
           coroutineScope.launch {
             if (accountRepository?.selectRelationship(relationshipId) == true) screen = Screen.RESULT
+          }
+        },
+        onAddLatest = { relationshipId ->
+          if (restoredRelationship?.id == relationshipId) {
+            screen = Screen.ADD_FACT
+          } else {
+            addFactAfterRelationshipSelection = relationshipId
+            coroutineScope.launch {
+              if (accountRepository?.selectRelationship(relationshipId) != true) {
+                addFactAfterRelationshipSelection = null
+              }
+            }
           }
         },
         onNew = {
@@ -147,7 +199,8 @@ fun SignalApp(
         validations = validations,
         message = formMessage,
         isAnalyzing = isAnalyzing,
-        onBack = { screen = Screen.LANDING },
+        onBack = { if (isAnalyzing) cancelAnalysis() else screen = Screen.LANDING },
+        onCancelAnalysis = cancelAnalysis,
         onChange = { index, value ->
           facts = facts.mapIndexed { itemIndex, fact -> if (itemIndex == index) value else fact }
           validations = emptyList()
@@ -159,6 +212,13 @@ fun SignalApp(
         onRemove = { index ->
           if (facts.size > 3) facts = facts.filterIndexed { itemIndex, _ -> itemIndex != index }
         },
+        onMove = { from, to ->
+          if (from in facts.indices && to in facts.indices) {
+            facts = facts.toMutableList().apply { add(to, removeAt(from)) }
+            validations = emptyList()
+            formMessage = null
+          }
+        },
         onAnalyze = {
           val cleaned = facts.map(::normalizeFact).filter(String::isNotEmpty)
           val inputErrors = cleaned.map(::factInputError).filterNotNull()
@@ -167,9 +227,11 @@ fun SignalApp(
             inputErrors.isNotEmpty() -> formMessage = "短すぎるFactがあります。出来事をもう少し具体的に書いてください。"
             cleaned.size != cleaned.distinct().size -> formMessage = "同じFactが重複しています。"
             else -> {
+              analysisGeneration += 1
+              val requestGeneration = analysisGeneration
               isAnalyzing = true
               formMessage = null
-              coroutineScope.launch {
+              analysisJob = coroutineScope.launch {
                 try {
                   val checked = gateway.validate(cleaned)
                   validations = checked
@@ -178,14 +240,20 @@ fun SignalApp(
                   } else {
                     analysis = gateway.analyze(cleaned)
                     resultRelationshipId = null
+                    revealFact = cleaned.first()
                     screen = Screen.RESULT
                   }
+                } catch (error: CancellationException) {
+                  throw error
                 } catch (error: JudgeGatewayException) {
                   formMessage = error.userMessageJa
                 } catch (_: Throwable) {
                   formMessage = "分析を開始できませんでした。入力内容は保持されています。"
                 } finally {
-                  isAnalyzing = false
+                  if (analysisGeneration == requestGeneration) {
+                    analysisJob = null
+                    isAnalyzing = false
+                  }
                 }
               }
             }
@@ -193,8 +261,20 @@ fun SignalApp(
         },
       )
       Screen.RESULT -> analysis?.let { currentAnalysis ->
+        val savedSnapshots = restoredRelationship
+          ?.takeIf { it.id == resultRelationshipId }
+          ?.snapshots
+          .orEmpty()
+        val savedCurrentScore = savedSnapshots.lastOrNull()?.scores?.signalLevel
+          ?.takeIf { it == currentAnalysis.scores.signalLevel }
+        val previousScore = if (savedCurrentScore == null) null else savedSnapshots
+          .dropLast(1)
+          .lastOrNull()
+          ?.scores
+          ?.signalLevel
         ResultScreen(
           analysis = currentAnalysis,
+          delta = previousScore?.let { currentAnalysis.scores.signalLevel - it },
           accountState = accountState,
           accountMessage = accountMessage,
           isSaved = resultRelationshipId != null && resultRelationshipId == restoredRelationship?.id,
@@ -222,23 +302,38 @@ fun SignalApp(
             }
           },
           onHistory = { screen = Screen.HISTORY },
+          revealFact = revealFact,
+          onRevealCompositionsMeasured = onRevealCompositionsMeasured,
+          onRevealFinished = { compositionCount ->
+            onRevealCompositionsMeasured?.invoke(compositionCount)
+            revealFact = null
+          },
         )
       } ?: LandingScreen(onStart = { screen = Screen.FACTS })
       Screen.ADD_FACT -> {
-        val relationship = restoredRelationship
-        if (relationship == null) {
+        val addFactContext = restoredRelationship?.let { relationship ->
+          relationship to accountRepository
+        }
+        if (addFactContext == null) {
           LandingScreen(onStart = { screen = Screen.FACTS })
         } else {
+          val (relationship, repository) = addFactContext
           AddFactScreen(
             relationshipName = relationship.displayName,
             value = newFact,
+            jevConsentAccepted = jevConsentAccepted,
             message = addFactMessage ?: accountMessage,
             isUpdating = isUpdating,
             onValueChange = { value ->
               newFact = value.take(300)
+              jevConsentAccepted = false
               addFactMessage = null
-              accountRepository.let { repository ->
-                coroutineScope.launch { repository.saveReanalysisDraft(relationship.id, newFact) }
+              coroutineScope.launch { repository.saveReanalysisDraft(relationship.id, newFact, jevConsent = false) }
+            },
+            onJevConsentChange = { accepted ->
+              jevConsentAccepted = accepted
+              coroutineScope.launch {
+                repository.saveReanalysisDraft(relationship.id, newFact, jevConsent = accepted)
               }
             },
             onBack = { screen = Screen.RESULT },
@@ -247,10 +342,11 @@ fun SignalApp(
               when {
                 newFact.isBlank() -> addFactMessage = "起きたことを1つ入力してください。"
                 inputError != null -> addFactMessage = inputError
+                !jevConsentAccepted -> addFactMessage = "Jevへの送信に同意してから更新してください。"
                 else -> {
                   isUpdating = true
                   coroutineScope.launch {
-                    val saved = accountRepository.appendFact(relationship.id, newFact)
+                    val saved = repository.appendFact(relationship.id, newFact, jevConsentAccepted)
                     isUpdating = false
                     if (saved) {
                       newFact = ""
@@ -264,10 +360,24 @@ fun SignalApp(
         }
       }
       Screen.HISTORY -> analysis?.let { currentAnalysis ->
+        val snapshots = if (resultRelationshipId == restoredRelationship?.id) restoredRelationship?.snapshots.orEmpty() else emptyList()
         HistoryScreen(
           analysis = currentAnalysis,
-          snapshots = if (resultRelationshipId == restoredRelationship?.id) restoredRelationship?.snapshots.orEmpty() else emptyList(),
+          snapshots = snapshots,
           onBack = { screen = Screen.RESULT },
+          onOpenSnapshot = { index ->
+            val timeline = snapshots.ifEmpty { listOf(SavedSnapshot(scores = currentAnalysis.scores, createdAt = "TODAY", factCount = currentAnalysis.factCount)) }
+            selectedSnapshot = timeline.getOrNull(index)
+            selectedSnapshotDelta = snapshotDeltas(timeline).getOrNull(index)
+            if (selectedSnapshot != null) screen = Screen.SNAPSHOT
+          },
+        )
+      } ?: LandingScreen(onStart = { screen = Screen.FACTS })
+      Screen.SNAPSHOT -> selectedSnapshot?.let { snapshot ->
+        SnapshotReceiptScreen(
+          snapshot = snapshot,
+          delta = selectedSnapshotDelta,
+          onBack = { screen = Screen.HISTORY },
         )
       } ?: LandingScreen(onStart = { screen = Screen.FACTS })
       Screen.AUTH -> AuthScreen(
@@ -356,6 +466,14 @@ private fun LandingScreen(onStart: () -> Unit) {
           lineHeight = 20.sp,
           textAlign = TextAlign.Center,
         )
+        Spacer(Modifier.height(10.dp))
+        Text(
+          text = "FACT ONLY · 出来事を記録して、時間による変化を見ます。",
+          color = SignalColors.Ink,
+          fontSize = 11.sp,
+          fontWeight = FontWeight.Black,
+          textAlign = TextAlign.Center,
+        )
         Spacer(Modifier.height(25.dp))
         GlossyButton("CHECK IT  ↗", SignalColors.Lime, SignalColors.Cyan, onStart)
         Spacer(Modifier.height(18.dp))
@@ -383,9 +501,11 @@ private fun FactScreen(
   message: String?,
   isAnalyzing: Boolean,
   onBack: () -> Unit,
+  onCancelAnalysis: () -> Unit,
   onChange: (Int, String) -> Unit,
   onAdd: () -> Unit,
   onRemove: (Int) -> Unit,
+  onMove: (Int, Int) -> Unit,
   onAnalyze: () -> Unit,
 ) {
   DotField(
@@ -399,6 +519,7 @@ private fun FactScreen(
       modifier = Modifier
         .fillMaxSize()
         .windowInsetsPadding(WindowInsets.safeDrawing)
+        .imePadding()
         .verticalScroll(rememberScrollState())
         .padding(horizontal = 18.dp),
     ) {
@@ -408,7 +529,13 @@ private fun FactScreen(
         verticalAlignment = Alignment.CenterVertically,
       ) {
         Text("SIGNAL", color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 21.sp, letterSpacing = (-2).sp)
-        Text("× CLOSE", color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 12.sp, modifier = Modifier.clickable(onClick = onBack))
+        Text(
+          if (isAnalyzing) "× CANCEL" else "× CLOSE",
+          color = SignalColors.Ink,
+          fontWeight = FontWeight.Black,
+          fontSize = 12.sp,
+          modifier = Modifier.clickable(onClick = onBack),
+        )
       }
       Spacer(Modifier.height(42.dp))
       StatusChip("WHAT HAPPENED?")
@@ -429,6 +556,20 @@ private fun FactScreen(
         fontSize = 14.sp,
         lineHeight = 21.sp,
       )
+      Spacer(Modifier.height(12.dp))
+      Text(
+        "× 最近冷たい　　○ 今週は3日返信がなかった",
+        color = SignalColors.Ink,
+        fontWeight = FontWeight.Black,
+        fontSize = 12.sp,
+        lineHeight = 18.sp,
+        modifier = Modifier
+          .fillMaxWidth()
+          .clip(SignalShapes.Control)
+          .background(SignalColors.White.copy(alpha = .72f))
+          .border(1.dp, SignalColors.Ink, SignalShapes.Control)
+          .padding(horizontal = 11.dp, vertical = 9.dp),
+      )
       Spacer(Modifier.height(20.dp))
       facts.forEachIndexed { index, fact ->
         FactTicket(
@@ -438,6 +579,11 @@ private fun FactScreen(
           error = factInputError(fact),
           onValueChange = { onChange(index, it) },
           onRemove = { onRemove(index) },
+          canMoveEarlier = index > 0,
+          canMoveLater = index < facts.lastIndex,
+          onMoveEarlier = { onMove(index, index - 1) },
+          onMoveLater = { onMove(index, index + 1) },
+          imeAction = if (index == facts.lastIndex) ImeAction.Done else ImeAction.Next,
         )
         Spacer(Modifier.height(13.dp))
       }
@@ -453,17 +599,39 @@ private fun FactScreen(
       }
       Spacer(Modifier.height(22.dp))
       GlossyButton(
-        if (isAnalyzing) "CRUSH.SYS 接続中..." else "この内容でSIGNALを見る  →",
+        if (isAnalyzing) "SIGNALを確認中…" else "この内容でSIGNALを見る  →",
         SignalColors.Pink,
         SignalColors.Purple,
         onAnalyze,
         modifier = Modifier.fillMaxWidth(),
         enabled = !isAnalyzing,
       )
+      if (isAnalyzing) {
+        Text(
+          "解析をキャンセルして入力に戻る",
+          color = SignalColors.Ink,
+          fontWeight = FontWeight.Black,
+          fontSize = 12.sp,
+          textAlign = TextAlign.Center,
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 5.dp)
+            .clickable(
+              role = Role.Button,
+              onClickLabel = "解析をキャンセル",
+              onClick = onCancelAnalysis,
+            )
+            .padding(vertical = 17.dp),
+        )
+      }
       val filled = facts.count { normalizeFact(it).isNotEmpty() }
       Spacer(Modifier.height(10.dp))
       Text(
-        text = if (filled >= 3) "3つのFactがそろいました。" else "あと${3 - filled}つでSIGNALを見られます",
+        text = if (filled >= 3) {
+          "${filled}件入力中 · 3件以上の出来事からSIGNALを見ます。"
+        } else {
+          "${filled}件入力中 · あと${3 - filled}件でSIGNALを見られます。"
+        },
         color = SignalColors.Muted,
         fontWeight = FontWeight.Bold,
         fontSize = 11.sp,
@@ -481,7 +649,10 @@ private fun FactScreen(
 private fun CartridgeHomeScreen(
   relationships: List<RelationshipSummary>,
   message: String?,
+  skin: SignalSkin,
+  onSkinChange: (SignalSkin) -> Unit,
   onOpen: (String) -> Unit,
+  onAddLatest: (String) -> Unit,
   onNew: () -> Unit,
   onLogout: (() -> Unit)?,
 ) {
@@ -529,8 +700,9 @@ private fun CartridgeHomeScreen(
           Text("まだ保存した記録はありません。最初の3つのFactからSIGNALを作ろう。", color = SignalColors.Ink, fontWeight = FontWeight.Bold, fontSize = 14.sp, lineHeight = 21.sp)
         }
       } else {
-        relationships.forEachIndexed { index, relationship ->
-          CartridgeCard(relationship, index, onOpen)
+        LatestCartridgeCard(relationships.first(), onAdd = onAddLatest, onOpen = onOpen)
+        relationships.drop(1).forEachIndexed { index, relationship ->
+          CartridgeCard(relationship, index + 1, onOpen)
           Spacer(Modifier.height(13.dp))
         }
       }
@@ -550,13 +722,26 @@ private fun CartridgeHomeScreen(
         )
         Spacer(Modifier.height(13.dp))
       }
-      GlossyButton(
-        "+ NEW SIGNAL",
-        SignalColors.Lime,
-        SignalColors.Cyan,
-        onNew,
-        modifier = Modifier.fillMaxWidth(),
-      )
+      if (relationships.isEmpty()) {
+        GlossyButton(
+          "+ NEW SIGNAL",
+          SignalColors.Lime,
+          SignalColors.Cyan,
+          onNew,
+          modifier = Modifier.fillMaxWidth(),
+        )
+      } else {
+        Text(
+          "+ NEW SIGNAL",
+          color = SignalColors.White,
+          fontWeight = FontWeight.Black,
+          fontSize = 11.sp,
+          textAlign = TextAlign.Center,
+          modifier = Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onNew).padding(vertical = 10.dp),
+        )
+      }
+      Spacer(Modifier.height(22.dp))
+      SkinPicker(skin = skin, onSkinChange = onSkinChange)
       if (onLogout != null) {
         Spacer(Modifier.height(18.dp))
         Text(
@@ -570,6 +755,50 @@ private fun CartridgeHomeScreen(
       }
       Spacer(Modifier.height(34.dp))
     }
+  }
+}
+
+@Composable
+private fun LatestCartridgeCard(
+  relationship: RelationshipSummary,
+  onAdd: (String) -> Unit,
+  onOpen: (String) -> Unit,
+) {
+  Column(
+    Modifier
+      .fillMaxWidth()
+      .clip(SignalShapes.Panel)
+      .background(SignalColors.White.copy(alpha = .96f))
+      .border(3.dp, SignalColors.Ink, SignalShapes.Panel)
+      .padding(16.dp),
+  ) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+      Text("LATEST SIGNAL CARTRIDGE", color = SignalColors.Muted, fontWeight = FontWeight.Black, fontSize = 10.sp, letterSpacing = .7.sp)
+      Text(relationship.updatedAt.toSignalDate(), color = SignalColors.Muted, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+    }
+    Spacer(Modifier.height(9.dp))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+      Text(relationship.displayName, color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 23.sp)
+      Text(relationship.signalLevel?.let { "$it / 100" } ?: "NO DATA", color = SignalColors.Pink, fontWeight = FontWeight.Black, fontSize = 20.sp)
+    }
+    Spacer(Modifier.height(5.dp))
+    Text("LATEST SNAPSHOT", color = SignalColors.Muted, fontWeight = FontWeight.Black, fontSize = 9.sp, letterSpacing = 1.sp)
+    Spacer(Modifier.height(13.dp))
+    GlossyButton(
+      "+ FACTを追加",
+      SignalColors.Lime,
+      SignalColors.Cyan,
+      { onAdd(relationship.id) },
+      modifier = Modifier.fillMaxWidth(),
+    )
+    Text(
+      "RECEIPT / HISTORY を見る  →",
+      color = SignalColors.Ink,
+      fontWeight = FontWeight.Black,
+      fontSize = 10.sp,
+      textAlign = TextAlign.Center,
+      modifier = Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = { onOpen(relationship.id) }).padding(top = 12.dp),
+    )
   }
 }
 
@@ -616,12 +845,15 @@ private fun CartridgeCard(
 private fun AddFactScreen(
   relationshipName: String,
   value: String,
+  jevConsentAccepted: Boolean,
   message: String?,
   isUpdating: Boolean,
   onValueChange: (String) -> Unit,
+  onJevConsentChange: (Boolean) -> Unit,
   onBack: () -> Unit,
   onSubmit: () -> Unit,
 ) {
+  val uriHandler = LocalUriHandler.current
   DotField(colors = listOf(SignalColors.Paper, SignalColors.Cyan, SignalColors.Purple)) {
     Column(
       modifier = Modifier
@@ -659,6 +891,69 @@ private fun AddFactScreen(
         onValueChange = onValueChange,
         onRemove = {},
       )
+      Spacer(Modifier.height(16.dp))
+      Column(
+        Modifier
+          .fillMaxWidth()
+          .clip(SignalShapes.Control)
+          .background(SignalColors.White.copy(alpha = .95f))
+          .border(2.dp, SignalColors.Ink, SignalShapes.Control)
+          .padding(12.dp),
+      ) {
+        Text(
+          "Jevによる分析と入力内容の取り扱い",
+          color = SignalColors.Ink,
+          fontWeight = FontWeight.Black,
+          fontSize = 12.sp,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+          "今回のFactと保存済みFactをTypeSafe AIのJevへ送って再分析します。入力内容はサービス提供などのために処理され、テレメトリは継続利用される場合があります。保存期間は明示されていません。本名や連絡先は入力しないでください。",
+          color = SignalColors.Ink,
+          fontWeight = FontWeight.SemiBold,
+          fontSize = 11.sp,
+          lineHeight = 16.sp,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+          Text(
+            "利用条件",
+            color = SignalColors.Purple,
+            fontWeight = FontWeight.Black,
+            fontSize = 10.sp,
+            modifier = Modifier.clickable(role = Role.Button, onClickLabel = "TypeSafeの利用条件を開く") {
+              runCatching { uriHandler.openUri("https://typesafe.ai/legal/mca") }
+            }.padding(vertical = 8.dp),
+          )
+          Text(
+            "プライバシーポリシー",
+            color = SignalColors.Purple,
+            fontWeight = FontWeight.Black,
+            fontSize = 10.sp,
+            modifier = Modifier.clickable(role = Role.Button, onClickLabel = "TypeSafeのプライバシーポリシーを開く") {
+              runCatching { uriHandler.openUri("https://typesafe.ai/legal/privacy-policy") }
+            }.padding(vertical = 8.dp),
+          )
+        }
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(
+              value = jevConsentAccepted,
+              role = Role.Checkbox,
+              onValueChange = onJevConsentChange,
+            ),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Checkbox(checked = jevConsentAccepted, onCheckedChange = null)
+          Text(
+            "内容を確認し、FactをJevへ送信することに同意します。",
+            color = SignalColors.Ink,
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp,
+            lineHeight = 16.sp,
+          )
+        }
+      }
       message?.let {
         Spacer(Modifier.height(15.dp))
         RealityCheckSlip(message = it, problems = emptyList())
@@ -670,7 +965,7 @@ private fun AddFactScreen(
         SignalColors.Purple,
         onSubmit,
         modifier = Modifier.fillMaxWidth(),
-        enabled = !isUpdating,
+        enabled = !isUpdating && jevConsentAccepted,
       )
       Spacer(Modifier.height(10.dp))
       Text(
@@ -691,6 +986,7 @@ private fun AddFactScreen(
 @Composable
 private fun ResultScreen(
   analysis: SignalAnalysis,
+  delta: Int?,
   accountState: AccountState,
   accountMessage: String?,
   isSaved: Boolean,
@@ -699,6 +995,9 @@ private fun ResultScreen(
   onLogout: (() -> Unit)?,
   onAddFact: () -> Unit,
   onHistory: () -> Unit,
+  revealFact: String?,
+  onRevealCompositionsMeasured: ((Int) -> Unit)?,
+  onRevealFinished: (Int) -> Unit,
 ) {
   DotField(colors = listOf(SignalColors.Purple, SignalColors.Pink, SignalColors.Cyan)) {
     Box(Modifier.fillMaxSize()) {
@@ -734,25 +1033,61 @@ private fun ResultScreen(
           desireToMeet = analysis.scores.desireToMeet,
           initiative = analysis.scores.initiative,
           evidenceSufficiency = analysis.scores.evidenceSufficiency,
+          factCount = analysis.factCount,
+          delta = delta,
         )
         Spacer(Modifier.height(24.dp))
-        GlossyButton(
-          if (isSaved) "MY CRUSH DEVICE  ↗" else "この記録を残す  ↗",
-          SignalColors.Yellow,
-          SignalColors.Pink,
-          if (isSaved) onHome ?: {} else onSave,
-          modifier = Modifier.fillMaxWidth(),
-        )
-        Text(
-          if (isSaved) "FactとSIGNALの履歴を保存済み。次回もここから続けられます。"
-          else "保存する時だけログイン。Fact・スコア・記録名をクラウドへ保存します。",
-          color = SignalColors.White,
-          fontSize = 11.sp,
-          fontWeight = FontWeight.Bold,
-          lineHeight = 17.sp,
-          textAlign = TextAlign.Center,
-          modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
-        )
+        if (isSaved) {
+          GlossyButton(
+            "+ FACTを追加",
+            SignalColors.Lime,
+            SignalColors.Cyan,
+            onAddFact,
+            modifier = Modifier.fillMaxWidth(),
+          )
+          Text(
+            "FactとSIGNALの履歴を保存済み。次の出来事があった時に追加できます。",
+            color = SignalColors.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            lineHeight = 17.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
+          )
+          Text(
+            "MY CRUSH DEVICE を見る  →",
+            color = SignalColors.White,
+            fontWeight = FontWeight.Black,
+            fontSize = 11.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onHome ?: {}).padding(top = 10.dp),
+          )
+        } else {
+          GlossyButton(
+            "この記録を残す  ↗",
+            SignalColors.Yellow,
+            SignalColors.Pink,
+            onSave,
+            modifier = Modifier.fillMaxWidth(),
+          )
+          Text(
+            "保存する時だけログイン。Fact・スコア・記録名をクラウドへ保存します。",
+            color = SignalColors.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            lineHeight = 17.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 9.dp),
+          )
+          Spacer(Modifier.height(16.dp))
+          GlossyButton(
+            "+ FACTを追加",
+            SignalColors.Lime,
+            SignalColors.Cyan,
+            onAddFact,
+            modifier = Modifier.fillMaxWidth(),
+          )
+        }
         accountMessage?.let { message ->
           Text(
             message,
@@ -770,14 +1105,6 @@ private fun ResultScreen(
               .padding(10.dp),
           )
         }
-        Spacer(Modifier.height(16.dp))
-        GlossyButton(
-          "+ FACTを追加",
-          SignalColors.Lime,
-          SignalColors.Cyan,
-          onAddFact,
-          modifier = Modifier.fillMaxWidth(),
-        )
         Spacer(Modifier.height(14.dp))
         Text(
           "YOUR SIGNAL HISTORY  ↗",
@@ -799,6 +1126,15 @@ private fun ResultScreen(
           )
         }
         Spacer(Modifier.height(34.dp))
+      }
+      revealFact?.let { fact ->
+        FactToReceiptReveal(
+          fact = fact,
+          score = analysis.scores.signalLevel,
+          factCount = analysis.factCount,
+          measureCompositionCount = onRevealCompositionsMeasured != null,
+          onFinished = onRevealFinished,
+        )
       }
     }
   }
@@ -953,11 +1289,13 @@ private fun HistoryScreen(
   analysis: SignalAnalysis,
   snapshots: List<SavedSnapshot>,
   onBack: () -> Unit,
+  onOpenSnapshot: (Int) -> Unit,
 ) {
   val timeline = snapshots.ifEmpty {
-    listOf(SavedSnapshot(scores = analysis.scores, createdAt = "TODAY"))
+    listOf(SavedSnapshot(scores = analysis.scores, createdAt = "TODAY", factCount = analysis.factCount))
   }
   val deltas = snapshotDeltas(timeline)
+  val factAdditions = snapshotFactAdditions(timeline)
   val graphStart = (timeline.size - 5).coerceAtLeast(0)
   val graphItems = timeline.drop(graphStart)
   DotField(colors = listOf(SignalColors.Cyan, SignalColors.Lime, SignalColors.Yellow)) {
@@ -1004,12 +1342,18 @@ private fun HistoryScreen(
       timeline.indices.reversed().forEach { index ->
         val snapshot = timeline[index]
         val delta = deltas[index]
+        val addedFacts = factAdditions[index]
         Row(
           modifier = Modifier
             .fillMaxWidth()
             .clip(SignalShapes.Control)
             .background(SignalColors.White.copy(alpha = .88f))
             .border(2.dp, SignalColors.Ink, SignalShapes.Control)
+            .clickable(
+              role = Role.Button,
+              onClickLabel = "${snapshot.createdAt.toSignalDate()}のSIGNAL Receiptを開く",
+              onClick = { onOpenSnapshot(index) },
+            )
             .padding(horizontal = 13.dp, vertical = 11.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically,
@@ -1017,6 +1361,12 @@ private fun HistoryScreen(
           Column {
             Text("SNAPSHOT ${(index + 1).toString().padStart(2, '0')}", color = SignalColors.Muted, fontWeight = FontWeight.Black, fontSize = 9.sp, letterSpacing = 1.sp)
             Text(snapshot.createdAt.toSignalDate(), color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 13.sp)
+            Text(
+              if (index == 0) "${snapshot.factCount} FACTS STARTED" else "+$addedFacts ${if (addedFacts == 1) "FACT" else "FACTS"}",
+              color = SignalColors.Muted,
+              fontWeight = FontWeight.Bold,
+              fontSize = 9.sp,
+            )
           }
           Row(verticalAlignment = Alignment.Bottom) {
             Text("${snapshot.scores.signalLevel} / 100", color = SignalColors.Purple, fontWeight = FontWeight.Black, fontSize = 17.sp)
@@ -1024,6 +1374,7 @@ private fun HistoryScreen(
               val deltaText = if (delta > 0) "+$delta" else delta.toString()
               Text("  $deltaText", color = if (delta >= 0) SignalColors.Pink else SignalColors.Muted, fontWeight = FontWeight.Black, fontSize = 12.sp)
             }
+            Text("  ›", color = SignalColors.Muted, fontWeight = FontWeight.Black, fontSize = 18.sp)
           }
         }
         Spacer(Modifier.height(9.dp))
@@ -1035,8 +1386,97 @@ private fun HistoryScreen(
   }
 }
 
+@Composable
+private fun SnapshotReceiptScreen(
+  snapshot: SavedSnapshot,
+  delta: Int?,
+  onBack: () -> Unit,
+) {
+  DotField(colors = listOf(SignalColors.Purple, SignalColors.Pink, SignalColors.Cyan)) {
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .windowInsetsPadding(WindowInsets.safeDrawing)
+        .verticalScroll(rememberScrollState())
+        .padding(horizontal = 20.dp),
+    ) {
+      Row(
+        Modifier.fillMaxWidth().padding(top = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+      ) {
+        Text("SIGNAL", color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 21.sp, letterSpacing = (-2).sp)
+        Text("‹ HISTORY", color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 12.sp, modifier = Modifier.clickable(onClick = onBack))
+      }
+      Spacer(Modifier.height(32.dp))
+      StatusChip("SNAPSHOT · ${snapshot.createdAt.toSignalDate()}")
+      Spacer(Modifier.height(14.dp))
+      SignalReceipt(
+        score = snapshot.scores.signalLevel,
+        statusLabel = snapshot.scores.signalLevel.toStatusLabel(),
+        desireToMeet = snapshot.scores.desireToMeet,
+        initiative = snapshot.scores.initiative,
+        evidenceSufficiency = snapshot.scores.evidenceSufficiency,
+        factCount = snapshot.factCount,
+        delta = delta,
+        receiptState = "SAVED SNAPSHOT",
+      )
+      Spacer(Modifier.height(20.dp))
+      RealityTip()
+      Spacer(Modifier.height(30.dp))
+    }
+  }
+}
+
+private fun Int.toStatusLabel(): String = when {
+  this >= 70 -> "GOOD SIGNAL"
+  this >= 45 -> "SIGNAL CHECK"
+  else -> "LOW SIGNAL"
+}
+
+@Composable
+private fun SkinPicker(skin: SignalSkin, onSkinChange: (SignalSkin) -> Unit) {
+  Column {
+    Text("DEVICE SKIN", color = SignalColors.White, fontWeight = FontWeight.Black, fontSize = 10.sp, letterSpacing = 1.sp)
+    Spacer(Modifier.height(8.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+      SignalSkin.entries.forEach { option ->
+        val selected = option == skin
+        val highlight = when (option) {
+          SignalSkin.BUBBLE_PINK -> SignalColors.Pink
+          SignalSkin.CYBER_CRUSH -> SignalColors.Purple
+          SignalSkin.ANGEL_SIGNAL -> SignalColors.Cyan
+        }
+        Column(
+          modifier = Modifier
+            .weight(1f)
+            .clip(SignalShapes.Control)
+            .background(SignalColors.White.copy(alpha = if (selected) .98f else .82f))
+            .border(if (selected) 3.dp else 1.dp, SignalColors.Ink, SignalShapes.Control)
+            .clickable(
+              role = Role.Button,
+              onClickLabel = "${option.label}${if (selected) " 選択中" else " を選択"}",
+              onClick = { onSkinChange(option) },
+            )
+            .padding(horizontal = 3.dp, vertical = 9.dp),
+          horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+          Text(option.label, color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 9.sp, textAlign = TextAlign.Center, maxLines = 1)
+          Text(if (selected) "SELECTED" else "SELECT", color = if (selected) highlight else SignalColors.Muted, fontWeight = FontWeight.Black, fontSize = 7.sp)
+        }
+      }
+    }
+    Spacer(Modifier.height(6.dp))
+    Text("見た目だけが変わり、スコアと読みやすさは同じです。", color = SignalColors.White, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+  }
+}
+
 internal fun snapshotDeltas(snapshots: List<SavedSnapshot>): List<Int?> = snapshots.mapIndexed { index, snapshot ->
   if (index == 0) null else snapshot.scores.signalLevel - snapshots[index - 1].scores.signalLevel
+}
+
+internal fun snapshotFactAdditions(snapshots: List<SavedSnapshot>): List<Int> = snapshots.mapIndexed { index, snapshot ->
+  if (index == 0) snapshot.factCount.coerceAtLeast(0)
+  else (snapshot.factCount - snapshots[index - 1].factCount).coerceAtLeast(0)
 }
 
 internal fun String.toSignalDate(): String {

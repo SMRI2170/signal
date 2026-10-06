@@ -31,6 +31,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import com.signal.app.ui.theme.SignalSkin
 
 sealed interface AccountState {
   data object Initializing : AccountState
@@ -50,6 +51,7 @@ data class SavedRelationship(
 data class SavedSnapshot(
   val scores: SignalScores,
   val createdAt: String,
+  val factCount: Int = 0,
 )
 
 data class RelationshipSummary(
@@ -62,6 +64,7 @@ data class RelationshipSummary(
 data class ReanalysisDraft(
   val relationshipId: String,
   val text: String,
+  val jevConsent: Boolean = false,
 )
 
 @Serializable
@@ -76,6 +79,8 @@ private data class PendingReanalysisDraft(
   val relationshipId: String,
   val text: String,
   val idempotencyKey: String,
+  val jevConsent: Boolean = false,
+  val isSubmitted: Boolean = false,
 )
 
 class SignalAccountRepository internal constructor(
@@ -150,29 +155,46 @@ class SignalAccountRepository internal constructor(
     }
   }
 
-  suspend fun saveReanalysisDraft(relationshipId: String, text: String) {
+  suspend fun saveReanalysisDraft(
+    relationshipId: String,
+    text: String,
+    jevConsent: Boolean? = null,
+    isSubmitted: Boolean = false,
+  ) {
     val normalized = normalizeFact(text)
     val previous = readReanalysisDraft()
+    val previousMatchingDraft = previous?.takeIf {
+      it.relationshipId == relationshipId && it.text == normalized
+    }
     val draft = PendingReanalysisDraft(
       relationshipId = relationshipId,
       text = normalized,
-      idempotencyKey = previous
-        ?.takeIf { it.relationshipId == relationshipId && it.text == normalized }
-        ?.idempotencyKey
-        ?: newSignalUuid(),
+      idempotencyKey = previousMatchingDraft?.idempotencyKey ?: newSignalUuid(),
+      jevConsent = jevConsent ?: (previousMatchingDraft?.jevConsent == true),
+      isSubmitted = isSubmitted,
     )
     store.write(REANALYSIS_DRAFT_KEY, json.encodeToString(PendingReanalysisDraft.serializer(), draft))
     _reanalysisDraft.value = draft.toDomain()
   }
 
-  suspend fun appendFact(relationshipId: String, text: String): Boolean {
+  suspend fun preferredSkin(): SignalSkin = SignalSkin.fromStorage(store.read(PREFERRED_SKIN_KEY))
+
+  suspend fun savePreferredSkin(skin: SignalSkin) {
+    store.write(PREFERRED_SKIN_KEY, skin.storageValue)
+  }
+
+  suspend fun appendFact(relationshipId: String, text: String, jevConsent: Boolean): Boolean {
     val normalized = normalizeFact(text)
     val inputError = factInputError(normalized)
     if (inputError != null || normalized.isEmpty()) {
       _message.value = inputError ?: "起きたことを入力してください。"
       return false
     }
-    saveReanalysisDraft(relationshipId, normalized)
+    if (!jevConsent) {
+      _message.value = "FactをJevへ送信することへの同意が必要です。"
+      return false
+    }
+    saveReanalysisDraft(relationshipId, normalized, jevConsent = true, isSubmitted = true)
     if (_state.value !is AccountState.SignedIn) {
       _state.value = AccountState.ReauthenticationRequired(
         "Factは端末に残っています。保存するには、もう一度ログインしてください。",
@@ -323,6 +345,7 @@ class SignalAccountRepository internal constructor(
 
   private suspend fun promotePendingReanalysis(): Boolean = promotionMutex.withLock {
     val draft = readReanalysisDraft() ?: return@withLock false
+    if (!draft.jevConsent || !draft.isSubmitted) return@withLock false
     val token = supabase.auth.currentAccessTokenOrNull() ?: return@withLock false
     _message.value = "新しいFactからSIGNALを更新しています…"
     val response = runCatching {
@@ -333,6 +356,7 @@ class SignalAccountRepository internal constructor(
           ReanalysisRequest(
             facts = listOf(FactRequest(clientFactId = newSignalUuid(), text = draft.text)),
             idempotencyKey = draft.idempotencyKey,
+            jevConsent = draft.jevConsent,
           ),
         )
       }
@@ -418,6 +442,7 @@ class SignalAccountRepository internal constructor(
   private fun PendingReanalysisDraft.toDomain() = ReanalysisDraft(
     relationshipId = relationshipId,
     text = text,
+    jevConsent = jevConsent,
   )
 
   private fun RelationshipSummaryResponse.toDomain() = RelationshipSummary(
@@ -440,6 +465,7 @@ class SignalAccountRepository internal constructor(
           evidenceSufficiency = snapshot.evidenceSufficiency,
         ),
         createdAt = snapshot.createdAt,
+        factCount = snapshot.factCount,
       )
     },
   )
@@ -448,6 +474,7 @@ class SignalAccountRepository internal constructor(
     const val PENDING_DRAFT_KEY = "pending_guest_draft"
     const val REANALYSIS_DRAFT_KEY = "pending_reanalysis_draft"
     const val LAST_RELATIONSHIP_KEY = "last_relationship_id"
+    const val PREFERRED_SKIN_KEY = "preferred_signal_skin"
     const val AUTH_SCHEME = "com.signal.app"
     const val AUTH_HOST = "login-callback"
     const val AUTH_REDIRECT_URL = "$AUTH_SCHEME://$AUTH_HOST"
@@ -499,6 +526,7 @@ private data class SaveRelationshipResponse(val relationshipId: String)
 private data class ReanalysisRequest(
   val facts: List<FactRequest>,
   val idempotencyKey: String,
+  val jevConsent: Boolean,
 )
 
 @Serializable
@@ -535,6 +563,7 @@ private data class SnapshotResponse(
   val initiative: Int,
   val evidenceSufficiency: Int,
   val createdAt: String,
+  val factCount: Int = 0,
 )
 
 @Serializable
