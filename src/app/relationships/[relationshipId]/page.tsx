@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { RelationshipQuestions } from "@/components/relationship-questions";
 import { SignalMeter } from "@/components/signal-meter";
 import { Sticker } from "@/components/sticker";
 import { createClient } from "@/lib/supabase/server";
@@ -74,6 +75,7 @@ export default async function RelationshipPage({ params }: { params: Promise<{ r
           <Link className="history-link" href={`/relationships/${relationshipId}/history`}>SIGNALの変化を見る <span aria-hidden="true">→</span></Link>
         </div>
       </section>
+      <RelationshipQuestions relationshipId={relationshipId} />
       <section aria-labelledby="recent-facts-title" className="facts-card recent-facts-card">
         <div className="facts-heading-row">
           <div><p className="sticker-label">RECENT FACTS</p><h2 id="recent-facts-title">いまのSIGNALをつくる、<br />最近の出来事。</h2></div>
