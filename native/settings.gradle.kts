@@ -19,4 +19,4 @@ dependencyResolutionManagement {
 rootProject.name = "signal-native"
 include(":composeApp")
 include(":androidApp")
-include(":baselineprofile")
+include(":macrobenchmark")
