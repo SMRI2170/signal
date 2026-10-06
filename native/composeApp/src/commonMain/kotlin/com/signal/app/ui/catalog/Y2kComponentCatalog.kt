@@ -94,6 +94,7 @@ fun Y2kComponentCatalog() {
           desireToMeet = 81,
           initiative = 68,
           evidenceSufficiency = 57,
+          factCount = 3,
         )
         SignalTape(
           scores = listOf(38, 42, 41, 54, 73),

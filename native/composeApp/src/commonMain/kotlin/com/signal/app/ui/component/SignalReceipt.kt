@@ -38,6 +38,9 @@ fun SignalReceipt(
   desireToMeet: Int,
   initiative: Int,
   evidenceSufficiency: Int,
+  factCount: Int = 0,
+  delta: Int? = null,
+  receiptState: String = "LIVE",
   modifier: Modifier = Modifier,
 ) {
   ChromeBezel(modifier) {
@@ -46,7 +49,7 @@ fun SignalReceipt(
         modifier = Modifier.fillMaxWidth().padding(14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
       ) {
-        PixelTerminal("SIGNAL SCANNER", "LIVE")
+        PixelTerminal("SIGNAL RECEIPT", receiptState)
         Spacer(Modifier.height(16.dp))
         StatusChip(statusLabel, background = SignalColors.Lime)
         Spacer(Modifier.height(15.dp))
@@ -82,8 +85,20 @@ fun SignalReceipt(
             .padding(horizontal = 8.dp, vertical = 6.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-          Text("↑ +${(score - 62).coerceAtLeast(1)}", color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 18.sp)
-          Text("LAST SCAN\nJUST NOW", color = SignalColors.Muted, fontWeight = FontWeight.Black, fontSize = 8.sp, lineHeight = 10.sp, textAlign = TextAlign.End)
+          Text(
+            delta?.let { if (it > 0) "↑ +$it" else if (it < 0) "↓ $it" else "= 0" } ?: "FIRST",
+            color = SignalColors.Ink,
+            fontWeight = FontWeight.Black,
+            fontSize = 18.sp,
+          )
+          Text(
+            if (delta == null) "${factCount.coerceAtLeast(0)} FACTS\nFIRST SCAN" else "SINCE\nLAST SCAN",
+            color = SignalColors.Muted,
+            fontWeight = FontWeight.Black,
+            fontSize = 8.sp,
+            lineHeight = 10.sp,
+            textAlign = TextAlign.End,
+          )
         }
         Spacer(Modifier.height(13.dp))
         MetricRow("会いたいサイン", desireToMeet, SignalColors.Pink)
