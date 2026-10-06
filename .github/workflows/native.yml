@@ -71,7 +71,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -noaudio -no-boot-anim -gpu swiftshader_indirect
-          boot-timeout: 1500
+          emulator-boot-timeout: 1500
           script: cd native && chmod +x gradlew && ./gradlew --no-daemon :androidApp:generateReleaseBaselineProfile --rerun-tasks -PSIGNAL_BENCHMARK_MODE=true && ./gradlew --no-daemon :macrobenchmark:connectedBenchmarkReleaseAndroidTest --rerun-tasks -PSIGNAL_BENCHMARK_MODE=true -Pandroid.testInstrumentationRunnerArguments.class=com.signal.benchmark.SignalUiSmokeTest && adb shell wm size 1080x2400 && adb shell wm density 480 && ./gradlew --no-daemon :macrobenchmark:connectedBenchmarkReleaseAndroidTest --rerun-tasks -PSIGNAL_BENCHMARK_MODE=true -Pandroid.testInstrumentationRunnerArguments.class=com.signal.benchmark.SignalUiSmokeTest && adb shell wm size 1290x2580 && ./gradlew --no-daemon :macrobenchmark:connectedBenchmarkReleaseAndroidTest --rerun-tasks -PSIGNAL_BENCHMARK_MODE=true -Pandroid.testInstrumentationRunnerArguments.class=com.signal.benchmark.SignalUiSmokeTest && adb shell wm size reset && adb shell wm density reset
       - name: Upload Baseline Profile and viewport smoke results
         if: always()
