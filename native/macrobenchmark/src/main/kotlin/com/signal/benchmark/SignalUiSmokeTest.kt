@@ -1,6 +1,8 @@
 package com.signal.benchmark
 
+import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.Until
 import androidx.test.uiautomator.onElement
 import androidx.test.uiautomator.textAsString
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -30,7 +32,15 @@ class SignalUiSmokeTest {
     device.waitForIdle()
     device.executeShellCommand("pm clear com.signal.app")
     device.executeShellCommand("am start -n com.signal.app/com.signal.app.MainActivity")
-    device.onElement { textAsString() == "CHECK IT  ↗" }.click()
+    // Cold AVD boot can leave the first frame blank; wait for the entry button
+    // before clicking it.
+    check(
+      device.wait(Until.hasObject(By.text("CHECK IT  ↗")), 10_000),
+    ) { "Expected the LANDING entry button ('CHECK IT  ↗') to render" }
+    device.onElement { textAsString() == "CHECK IT  ↗" }.parent.click()
+    check(
+      device.wait(Until.hasObject(By.clazz("android.widget.EditText")), 10_000),
+    ) { "Expected an EditText field on the FACTS screen" }
     device.onElement { className == "android.widget.EditText" }
       .text = "PRIVATE_FACT_SENTINEL_DO_NOT_LOG_83B6"
 
