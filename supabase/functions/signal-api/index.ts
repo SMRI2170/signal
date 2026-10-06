@@ -6,6 +6,7 @@ type FactInput = {
 };
 
 type ValidationStatus = "observable" | "interpretation" | "unclear";
+type UsageStage = "validation" | "analysis";
 
 const SCORE_LEVELS = [
   "根拠がない、または明確に否定的な出来事だけがある。",
@@ -33,6 +34,7 @@ const ALLOWED_ORIGINS = new Set([
 ]);
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ANALYSIS_ANSWER_KEYS = ["romanticInterest", "desireToMeet", "initiative", "evidenceSufficiency"] as const;
 const encoder = new TextEncoder();
 
 function corsHeaders(origin: string | null) {
@@ -90,6 +92,10 @@ function parseFacts(body: unknown, minimum: number, maximum = 10): FactInput[] |
   return facts.map((fact) => ({ ...fact, text: fact.text.trim() }));
 }
 
+function hasJevConsent(body: unknown) {
+  return Boolean(body && typeof body === "object" && (body as Record<string, unknown>).jevConsent === true);
+}
+
 function validationCopy(status: ValidationStatus) {
   switch (status) {
     case "observable":
@@ -107,12 +113,46 @@ function validationCopy(status: ValidationStatus) {
   }
 }
 
-function clampScore(value: number) {
-  return Math.min(100, Math.max(0, Math.round(value)));
+function normalizeScore(value: number) {
+  return Math.round((value / (SCORE_LEVELS.length - 1)) * 100);
 }
 
-function normalizeScore(value: number) {
-  return clampScore((value / (SCORE_LEVELS.length - 1)) * 100);
+function hasExactKeys(value: unknown, expected: readonly string[]) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const actual = Object.keys(value).sort();
+  const expectedSorted = [...expected].sort();
+  return actual.length === expectedSorted.length && actual.every((key, index) => key === expectedSorted[index]);
+}
+
+function reportJevUsage(
+  requestId: string,
+  stage: UsageStage,
+  model: unknown,
+  usage: unknown,
+) {
+  if (typeof model !== "string" || model.trim().length === 0 || model.length > 100) {
+    throw new Error("Invalid Jev model metadata");
+  }
+  if (!usage || typeof usage !== "object") throw new Error("Invalid Jev usage metadata");
+  const candidate = usage as Record<string, unknown>;
+  const inputTokens = candidate.input_tokens;
+  const outputTokens = candidate.output_tokens;
+  if (
+    typeof inputTokens !== "number" || !Number.isSafeInteger(inputTokens) || inputTokens < 0 ||
+    typeof outputTokens !== "number" || !Number.isSafeInteger(outputTokens) || outputTokens < 0
+  ) throw new Error("Invalid Jev usage metadata");
+
+  // Jev's published early-access rate is $0.042 per million input tokens; output tokens are free.
+  const estimatedCostUsd = Number((inputTokens * 0.042 / 1_000_000).toFixed(12));
+  console.info("jev_usage", {
+    requestId,
+    provider: "jev",
+    stage,
+    modelVersion: model,
+    inputTokens,
+    outputTokens,
+    estimatedCostUsd,
+  });
 }
 
 function createJudge() {
@@ -120,40 +160,49 @@ function createJudge() {
   if (!apiKey) throw new Error("TYPESAFE_API_KEY is not configured");
   return new TypeSafeClient({
     apiKey,
+    defaultModel: Deno.env.get("TYPESAFE_DEFAULT_MODEL") ?? "jev-latest",
     logLevel: "off",
     timeout: 8_000,
     retry: { maxRetries: 1 },
   });
 }
 
-async function validateFacts(judge: TypeSafeClient, facts: FactInput[]) {
+async function validateFacts(judge: TypeSafeClient, facts: FactInput[], requestId: string) {
   const questions = Object.fromEntries(
-    facts.map((_fact, index) => [
-      `fact_${index}`,
-      choice(
-        "この文章は、相手との間で実際に起きた出来事だけを記録していますか。文章そのものだけを判定し、書かれていない事情を推測しないでください。",
-        OBSERVABILITY_CRITERIA,
-      ),
+    facts.map((fact, index) => [
+        `fact_${index}`,
+        choice(
+          `facts配列の${index}番目（clientFactId=${fact.clientFactId}）だけを判定してください。他のFactを根拠にせず、このFactは相手との間で実際に起きた出来事だけを記録していますか。文章に書かれていない事情は推測しないでください。`,
+          OBSERVABILITY_CRITERIA,
+        ),
     ]),
   );
   const response = await judge.systemOne({
     state: { facts: facts.map(({ clientFactId, text }) => ({ clientFactId, text })) },
     questions,
   });
+  reportJevUsage(requestId, "validation", response.model, response.usage);
+
+  const answerKeys = facts.map((_fact, index) => `fact_${index}`);
+  if (!hasExactKeys(response.answers, answerKeys)) throw new Error("Invalid validation response");
 
   return facts.map((fact, index) => {
-    const status = response.answers[`fact_${index}`]?.choice as ValidationStatus | undefined;
-    if (!status || !(status in OBSERVABILITY_CRITERIA)) throw new Error("Invalid validation response");
+    const answer = response.answers[`fact_${index}`];
+    const status = answer?.choice;
+    if (
+      answer?.type !== "choice" || typeof status !== "string" ||
+      !Object.hasOwn(OBSERVABILITY_CRITERIA, status)
+    ) throw new Error("Invalid validation response");
     return {
       clientFactId: fact.clientFactId,
-      status,
-      ...validationCopy(status),
+      status: status as ValidationStatus,
+      ...validationCopy(status as ValidationStatus),
       translatedFactEn: null,
     };
   });
 }
 
-async function analyzeFacts(judge: TypeSafeClient, facts: FactInput[]) {
+async function analyzeFacts(judge: TypeSafeClient, facts: FactInput[], requestId: string) {
   const response = await judge.systemOne({
     state: {
       facts: facts.map(({ clientFactId, text }) => ({ clientFactId, text })),
@@ -176,23 +225,23 @@ async function analyzeFacts(judge: TypeSafeClient, facts: FactInput[]) {
       ),
     },
   });
+  reportJevUsage(requestId, "analysis", response.model, response.usage);
 
-  const answers = response.answers;
-  const values = [
-    answers.romanticInterest?.score,
-    answers.desireToMeet?.score,
-    answers.initiative?.score,
-    answers.evidenceSufficiency?.score,
-  ];
-  if (values.some((value) => typeof value !== "number" || !Number.isFinite(value))) {
+  const answers = response.answers as unknown as Record<string, { type?: unknown; score?: unknown }>;
+  if (!hasExactKeys(answers, ANALYSIS_ANSWER_KEYS)) {
     throw new Error("Invalid analysis response");
   }
+  const values = ANALYSIS_ANSWER_KEYS.map((key) => answers[key]?.score);
+  if (
+    ANALYSIS_ANSWER_KEYS.some((key) => answers[key]?.type !== "score") ||
+    values.some((value) => typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > SCORE_LEVELS.length - 1)
+  ) throw new Error("Invalid analysis response");
   return {
     scores: {
-      romanticInterest: normalizeScore(answers.romanticInterest.score),
-      desireToMeet: normalizeScore(answers.desireToMeet.score),
-      initiative: normalizeScore(answers.initiative.score),
-      evidenceSufficiency: normalizeScore(answers.evidenceSufficiency.score),
+      romanticInterest: normalizeScore(answers.romanticInterest.score as number),
+      desireToMeet: normalizeScore(answers.desireToMeet.score as number),
+      initiative: normalizeScore(answers.initiative.score as number),
+      evidenceSufficiency: normalizeScore(answers.evidenceSufficiency.score as number),
     },
     impact: null,
     modelVersion: response.model,
@@ -277,6 +326,7 @@ function parseRelationshipRequest(body: unknown) {
   if (!facts || !body || typeof body !== "object") return null;
   const candidate = body as Record<string, unknown>;
   if (
+    candidate.jevConsent !== true ||
     typeof candidate.displayName !== "string" ||
     candidate.displayName.trim().length < 1 ||
     candidate.displayName.trim().length > 80 ||
@@ -290,15 +340,15 @@ function parseRelationshipRequest(body: unknown) {
   };
 }
 
-async function saveRelationship(userId: string, body: unknown) {
+async function saveRelationship(userId: string, body: unknown, requestId: string) {
   const input = parseRelationshipRequest(body);
   if (!input) return { error: "INVALID_REQUEST" as const };
   const judge = createJudge();
-  const validations = await validateFacts(judge, input.facts);
+  const validations = await validateFacts(judge, input.facts, requestId);
   if (validations.some((validation) => validation.status !== "observable")) {
     return { error: "FACT_NOT_OBSERVABLE" as const };
   }
-  const analysis = await analyzeFacts(judge, input.facts);
+  const analysis = await analyzeFacts(judge, input.facts, requestId);
   const response = await serviceRoleRequest("rpc/create_initial_relationship_analysis", {
     method: "POST",
     body: JSON.stringify({
@@ -371,11 +421,14 @@ async function listRelationships(userId: string) {
   });
 }
 
-async function appendFactAndAnalysis(userId: string, relationshipId: string, body: unknown) {
+async function appendFactAndAnalysis(userId: string, relationshipId: string, body: unknown, requestId: string) {
   const newFacts = parseFacts(body, 1, 1);
   if (!newFacts || !body || typeof body !== "object") return { error: "INVALID_REQUEST" as const };
   const candidate = body as Record<string, unknown>;
-  if (typeof candidate.idempotencyKey !== "string" || !UUID_PATTERN.test(candidate.idempotencyKey)) {
+  if (
+    candidate.jevConsent !== true || typeof candidate.idempotencyKey !== "string" ||
+    !UUID_PATTERN.test(candidate.idempotencyKey)
+  ) {
     return { error: "INVALID_REQUEST" as const };
   }
 
@@ -389,11 +442,11 @@ async function appendFactAndAnalysis(userId: string, relationshipId: string, bod
   if (factsForAnalysis.length > 30) return { error: "FACT_LIMIT_REACHED" as const };
 
   const judge = createJudge();
-  const validations = await validateFacts(judge, newFacts);
+  const validations = await validateFacts(judge, newFacts, requestId);
   if (validations.some((validation) => validation.status !== "observable")) {
     return { error: "FACT_NOT_OBSERVABLE" as const };
   }
-  const analysis = await analyzeFacts(judge, factsForAnalysis);
+  const analysis = await analyzeFacts(judge, factsForAnalysis, requestId);
   const response = await serviceRoleRequest("rpc/append_facts_and_analysis", {
     method: "POST",
     body: JSON.stringify({
@@ -557,8 +610,8 @@ Deno.serve(async (request) => {
     const body = await request.json().catch(() => null);
     try {
       const result = reanalysisId
-        ? await appendFactAndAnalysis(userId, reanalysisId, body)
-        : await saveRelationship(userId, body);
+        ? await appendFactAndAnalysis(userId, reanalysisId, body, requestId)
+        : await saveRelationship(userId, body, requestId);
       if ("error" in result) {
         if (result.error === "FACT_NOT_OBSERVABLE") {
           return apiError("FACT_NOT_OBSERVABLE", "観測可能なFactに書き換えてください。", 422, requestId, origin);
@@ -585,6 +638,9 @@ Deno.serve(async (request) => {
     }
   }
 
+  if (!judgeRoute) {
+    return apiError("NOT_FOUND", "APIが見つかりません。", 404, requestId, origin);
+  }
   if (request.method !== "POST") {
     return apiError("METHOD_NOT_ALLOWED", "POSTで送信してください。", 405, requestId, origin);
   }
@@ -610,6 +666,9 @@ Deno.serve(async (request) => {
   }
 
   const body = await request.json().catch(() => null);
+  if (!hasJevConsent(body)) {
+    return apiError("CONSENT_REQUIRED", "JevへFactを送信することへの同意が必要です。", 400, requestId, origin);
+  }
   const facts = parseFacts(body, judgeRoute === "validate" ? 1 : 3);
   if (!facts) {
     const code = judgeRoute === "validate" ? "INVALID_REQUEST" : "INSUFFICIENT_FACTS";
@@ -623,7 +682,7 @@ Deno.serve(async (request) => {
   let validations: Awaited<ReturnType<typeof validateFacts>>;
   try {
     judge = createJudge();
-    validations = await validateFacts(judge, facts);
+    validations = await validateFacts(judge, facts, requestId);
   } catch (error) {
     console.error("validation_unavailable", { requestId, error: error instanceof Error ? error.name : "unknown" });
     return apiError(
@@ -640,7 +699,7 @@ Deno.serve(async (request) => {
     return apiError("FACT_NOT_OBSERVABLE", "観測可能なFactに書き換えてください。", 422, requestId, origin);
   }
   try {
-    return jsonResponse(await analyzeFacts(judge, facts), 200, requestId, origin);
+    return jsonResponse(await analyzeFacts(judge, facts, requestId), 200, requestId, origin);
   } catch (error) {
     console.error("analysis_unavailable", { requestId, error: error instanceof Error ? error.name : "unknown" });
     return apiError(

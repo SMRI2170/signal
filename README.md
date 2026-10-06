@@ -79,3 +79,4 @@ cd native
 
 - `NEXT_PUBLIC_*` はブラウザへ公開される値だけに限定します。
 - `SUPABASE_SECRET_KEY` と `TYPESAFE_API_KEY` はServer専用です。リポジトリへコミットしないでください。
+- Jevのローカル設定、Fact送信の同意、コスト計測、匿名化評価の手順は[`docs/jev-integration.md`](./docs/jev-integration.md)を参照してください。

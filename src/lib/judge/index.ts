@@ -1,6 +1,12 @@
 import { fakeJudge } from "./fake-judge";
-import { createTypeSafeJudgeProvider } from "./typesafe-judge";
+import { JudgeProviderUnavailableError } from "./provider";
+import { createJevJudgeProvider } from "./jev-judge";
 
 export function getJudgeProvider() {
-  return createTypeSafeJudgeProvider() ?? fakeJudge;
+  const provider = createJevJudgeProvider();
+  if (provider) return provider;
+  if (process.env.NODE_ENV === "production") {
+    throw new JudgeProviderUnavailableError("Jev is not configured.");
+  }
+  return fakeJudge;
 }
