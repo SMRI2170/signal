@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "evaluate:jev": "node scripts/evaluate-jev.mjs",
     "quality:dead-code": "npx --yes knip@6.39.0",
     "quality:cycles": "dependency-cruiser src --config .dependency-cruiser.cjs",
     "quality:bundle": "node scripts/check-bundle-size.mjs"

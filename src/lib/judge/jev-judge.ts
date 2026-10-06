@@ -1,7 +1,14 @@
 import { choice, score, TypeSafeClient } from "@typesafe-ai/sdk";
 
 import { JudgeProviderUnavailableError, type JudgeProvider } from "./provider";
-import type { AnalysisResult, FactInput, FactValidationResult } from "./types";
+import { parseJevUsage, type JevUsage } from "./jev-usage";
+import {
+  analysisResultSchema,
+  factValidationResultSchema,
+  type AnalysisResult,
+  type FactInput,
+  type FactValidationResult,
+} from "./types";
 
 const SCORE_LEVELS = [
   "根拠がない、または明確に否定的な出来事だけがある。",
@@ -22,12 +29,26 @@ const OBSERVABILITY_CRITERIA = {
   unclear: "誰がいつ何をしたか不十分で、安定して判定できない記述。",
 } as const;
 
-function clampScore(value: number) {
-  return Math.min(100, Math.max(0, Math.round(value)));
+type TypeSafeClientOptions = ConstructorParameters<typeof TypeSafeClient>[0];
+type UsageStage = "validation" | "analysis";
+type UsageReporter = (event: JevUsage & { stage: UsageStage; operationId: string }) => void;
+type TypeSafeJudgeOptions = TypeSafeClientOptions & {
+  onUsage?: UsageReporter;
+  operationId?: string;
+};
+
+const SCORE_KEYS = ["romanticInterest", "desireToMeet", "initiative", "evidenceSufficiency"] as const;
+
+function assertExactKeys(value: unknown, expectedKeys: readonly string[]) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const actualKeys = Object.keys(value).sort();
+  const sortedExpectedKeys = [...expectedKeys].sort();
+  return actualKeys.length === sortedExpectedKeys.length &&
+    actualKeys.every((key, index) => key === sortedExpectedKeys[index]);
 }
 
-function normalizeScore(scoreValue: number) {
-  return clampScore((scoreValue / (SCORE_LEVELS.length - 1)) * 100);
+function normalizeScore(value: number) {
+  return Math.round((value / (SCORE_LEVELS.length - 1)) * 100);
 }
 
 function validationCopy(status: keyof typeof OBSERVABILITY_CRITERIA) {
@@ -50,18 +71,39 @@ function validationCopy(status: keyof typeof OBSERVABILITY_CRITERIA) {
   }
 }
 
-type TypeSafeJudgeOptions = ConstructorParameters<typeof TypeSafeClient>[0];
-
-export class TypeSafeJudgeProvider implements JudgeProvider {
+export class JevJudgeProvider implements JudgeProvider {
   private readonly client: TypeSafeClient;
+  private readonly onUsage: UsageReporter;
+  private readonly operationId: string;
 
   constructor(options: TypeSafeJudgeOptions) {
+    const { onUsage, operationId, ...clientOptions } = options;
+    this.operationId = operationId ?? crypto.randomUUID();
+    this.onUsage = onUsage ?? ((event) => {
+      console.info("jev_usage", {
+        operationId: event.operationId,
+        stage: event.stage,
+        modelVersion: event.modelVersion,
+        inputTokens: event.inputTokens,
+        outputTokens: event.outputTokens,
+        estimatedCostUsd: event.estimatedCostUsd,
+      });
+    });
     this.client = new TypeSafeClient({
-      ...options,
+      ...clientOptions,
+      defaultModel: clientOptions.defaultModel ?? process.env.TYPESAFE_DEFAULT_MODEL ?? "jev-latest",
       logLevel: "off",
       timeout: 8_000,
       retry: { maxRetries: 1 },
     });
+  }
+
+  private reportUsage(stage: UsageStage, model: unknown, usage: unknown) {
+    const parsedUsage = parseJevUsage(model, usage);
+    if (!parsedUsage) {
+      throw new JudgeProviderUnavailableError("TypeSafe returned invalid usage metadata.");
+    }
+    this.onUsage({ ...parsedUsage, stage, operationId: this.operationId });
   }
 
   async validateFacts(facts: FactInput[]): Promise<FactValidationResult[]> {
@@ -69,7 +111,7 @@ export class TypeSafeJudgeProvider implements JudgeProvider {
       facts.map((fact, index) => [
         `fact_${index}`,
         choice(
-          "この文章は、相手との間で実際に起きた出来事だけを記録していますか。文章そのものだけを判定し、書かれていない事情を推測しないでください。",
+          `facts配列の${index}番目（clientFactId=${fact.clientFactId}）だけを判定してください。他のFactを根拠にせず、このFactは相手との間で実際に起きた出来事だけを記録していますか。文章に書かれていない事情は推測しないでください。`,
           OBSERVABILITY_CRITERIA,
         ),
       ]),
@@ -80,22 +122,30 @@ export class TypeSafeJudgeProvider implements JudgeProvider {
         state: { facts: facts.map(({ clientFactId, text }) => ({ clientFactId, text })) },
         questions,
       });
+      this.reportUsage("validation", response.model, response.usage);
+
+      const expectedAnswerKeys = facts.map((_fact, index) => `fact_${index}`);
+      if (!assertExactKeys(response.answers, expectedAnswerKeys)) {
+        throw new JudgeProviderUnavailableError("TypeSafe returned an invalid fact validation result.");
+      }
 
       return facts.map((fact, index) => {
-        const status = response.answers[`fact_${index}`]?.choice;
-        if (!status || !(status in OBSERVABILITY_CRITERIA)) {
+        const answer = response.answers[`fact_${index}`];
+        const status = answer?.choice;
+        if (
+          answer?.type !== "choice" || typeof status !== "string" ||
+          !Object.hasOwn(OBSERVABILITY_CRITERIA, status)
+        ) {
           throw new JudgeProviderUnavailableError("TypeSafe returned an invalid fact validation result.");
         }
 
-        const copy = validationCopy(status);
-        return {
+        return factValidationResultSchema.parse({
           clientFactId: fact.clientFactId,
           status,
-          ...copy,
-          // TypeSafe performs a typed judgment rather than translation. Preserve the
-          // original Fact and leave an English field empty until translation is required.
+          ...validationCopy(status as keyof typeof OBSERVABILITY_CRITERIA),
+          // Jev returns typed decisions rather than generated strings, so translation stays empty.
           translatedFactEn: null,
-        };
+        });
       });
     } catch (error) {
       if (error instanceof JudgeProviderUnavailableError) throw error;
@@ -130,30 +180,31 @@ export class TypeSafeJudgeProvider implements JudgeProvider {
           ),
         },
       });
+      this.reportUsage("analysis", response.model, response.usage);
 
-      const answers = response.answers;
-      const scoreValues = [
-        answers.romanticInterest?.score,
-        answers.desireToMeet?.score,
-        answers.initiative?.score,
-        answers.evidenceSufficiency?.score,
-      ];
-
-      if (scoreValues.some((value) => typeof value !== "number" || !Number.isFinite(value))) {
+      const answers = response.answers as unknown as Record<string, { type?: unknown; score?: unknown }>;
+      if (!assertExactKeys(answers, SCORE_KEYS)) {
         throw new JudgeProviderUnavailableError("TypeSafe returned an invalid analysis result.");
       }
 
-      return {
+      const scoreValues = SCORE_KEYS.map((key) => answers[key]?.score);
+      if (SCORE_KEYS.some((key) => answers[key]?.type !== "score") || scoreValues.some((value) =>
+        typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > SCORE_LEVELS.length - 1
+      )) {
+        throw new JudgeProviderUnavailableError("TypeSafe returned an invalid analysis result.");
+      }
+
+      return analysisResultSchema.parse({
         scores: {
-          romanticInterest: normalizeScore(answers.romanticInterest.score),
-          desireToMeet: normalizeScore(answers.desireToMeet.score),
-          initiative: normalizeScore(answers.initiative.score),
-          evidenceSufficiency: normalizeScore(answers.evidenceSufficiency.score),
+          romanticInterest: normalizeScore(answers.romanticInterest.score as number),
+          desireToMeet: normalizeScore(answers.desireToMeet.score as number),
+          initiative: normalizeScore(answers.initiative.score as number),
+          evidenceSufficiency: normalizeScore(answers.evidenceSufficiency.score as number),
         },
         impact: null,
         modelVersion: response.model,
         rubricVersion: "signal-rubric-v1",
-      };
+      });
     } catch (error) {
       if (error instanceof JudgeProviderUnavailableError) throw error;
       throw new JudgeProviderUnavailableError();
@@ -161,9 +212,9 @@ export class TypeSafeJudgeProvider implements JudgeProvider {
   }
 }
 
-export function createTypeSafeJudgeProvider() {
+export function createJevJudgeProvider() {
   const apiKey = process.env.TYPESAFE_API_KEY ?? process.env.TYPESAFE_AI_API_KEY;
   if (!apiKey) return null;
 
-  return new TypeSafeJudgeProvider({ apiKey });
+  return new JevJudgeProvider({ apiKey });
 }
