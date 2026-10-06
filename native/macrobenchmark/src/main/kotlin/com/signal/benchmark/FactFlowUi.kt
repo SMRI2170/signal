@@ -15,14 +15,26 @@ private val sampleFacts = listOf(
 )
 
 internal fun UiDevice.completeFactFlow(checkFactLogs: Boolean = false) {
-  var attempts = 0
-  while (!wait(Until.hasObject(By.text("CHECK IT  ↗")), 250) && attempts < 4) {
+  // Compose LANDING screen may take a few seconds to render on a cold emulator
+  // boot. Wait for the entry button to appear before any click or scroll.
+  check(
+    wait(Until.hasObject(By.text("CHECK IT  ↗")), 10_000),
+  ) { "Expected the LANDING entry button ('CHECK IT  ↗') to render" }
+
+  // Bring the entry button into view if the layout has scrolled past it.
+  repeat(4) {
+    if (hasObject(By.text("CHECK IT  ↗"))) return@repeat
     swipe(displayWidth / 2, displayHeight * 4 / 5, displayWidth / 2, displayHeight / 4, 16)
     waitForIdle()
-    attempts += 1
   }
-  check(wait(Until.hasObject(By.text("CHECK IT  ↗")), 500)) { "Expected the Fact entry button after scrolling" }
+  check(hasObject(By.text("CHECK IT  ↗"))) { "Expected the Fact entry button after scrolling" }
   onElement { textAsString() == "CHECK IT  ↗" }.parent.click()
+
+  // Wait for the FACTS screen to be ready before reading EditText nodes.
+  check(
+    wait(Until.hasObject(By.res("android:id/content")), 5_000) ||
+      onElements { className == FACT_FIELD_CLASS }.isNotEmpty(),
+  ) { "Expected the FACTS screen to render with EditText fields" }
 
   var factFields = onElements { className == FACT_FIELD_CLASS }
     .sortedBy { it.visibleBounds.top }
@@ -46,6 +58,9 @@ internal fun UiDevice.completeFactFlow(checkFactLogs: Boolean = false) {
   waitForIdle()
 
   swipe(displayWidth / 2, displayHeight * 3 / 4, displayWidth / 2, displayHeight / 4, 16)
+  check(
+    wait(Until.hasObject(By.text("この内容でSIGNALを見る  →")), 5_000),
+  ) { "Expected the analyze button ('この内容でSIGNALを見る  →') after entering three Facts" }
   onElement { textAsString() == "この内容でSIGNALを見る  →" }.parent.click()
   if (wait(Until.hasObject(By.text("FACT TICKET")), 500)) {
     check(wait(Until.gone(By.text("FACT TICKET")), 2_000)) {

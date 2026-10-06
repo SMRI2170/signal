@@ -7,6 +7,8 @@ import androidx.benchmark.macro.StartupTimingMetric
 import androidx.benchmark.macro.junit4.BaselineProfileRule
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.Until
 import androidx.test.uiautomator.onElement
 import androidx.test.uiautomator.textAsString
 import org.junit.Rule
@@ -55,7 +57,14 @@ class SignalBaselineProfile {
     includeInStartupProfile = true,
   ) {
     startActivityAndWait()
-    device.onElement { textAsString() == "CHECK IT  ↗" }.click()
-    device.onElement { textAsString() == "WHAT HAPPENED?" }
+    // Wait for the Compose LANDING screen to render before searching for the entry
+    // button. A cold AVD boot can leave the first frame blank for several seconds.
+    check(
+      device.wait(Until.hasObject(By.text("CHECK IT  ↗")), 10_000),
+    ) { "Expected the LANDING entry button ('CHECK IT  ↗') to render" }
+    device.onElement { textAsString() == "CHECK IT  ↗" }.parent.click()
+    check(
+      device.wait(Until.hasObject(By.text("WHAT HAPPENED?")), 10_000),
+    ) { "Expected the FACTS screen header 'WHAT HAPPENED?' after clicking CHECK IT" }
   }
 }
