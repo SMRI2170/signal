@@ -1,21 +1,31 @@
-package com.signal.benchmark
+package com.signal.smoke
 
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import androidx.test.uiautomator.onElement
 import androidx.test.uiautomator.textAsString
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Test
 import org.junit.runner.RunWith
 
+/**
+ * Debug-build smoke tests for the SIGNAL Android app.
+ *
+ * These tests live in :androidApp (not :macrobenchmark) so they can execute via
+ * `:androidApp:connectedDebugAndroidTest` on a freshly cleared app process.
+ * Keeping them out of the macrobenchmark module avoids the `ActivityRecordInputSink`
+ * state that `MacrobenchmarkRule.startActivityAndWait()` leaves behind, which was
+ * causing the previous swiftshader CI emulator runs to report "Active window root
+ * not found" for 30+ seconds before failing with
+ * "Expected the LANDING entry button ('CHECK IT  ↗') to render".
+ */
 @RunWith(AndroidJUnit4::class)
 class SignalUiSmokeTest {
   @Test
   fun landingToResultKeepsTheFactFlowUsable() {
-    val device = androidx.test.uiautomator.UiDevice.getInstance(
-      androidx.test.platform.app.InstrumentationRegistry.getInstrumentation(),
-    )
+    val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
     device.pressHome()
     device.waitForIdle()
     device.executeShellCommand("pm clear com.signal.app")
@@ -25,9 +35,7 @@ class SignalUiSmokeTest {
 
   @Test
   fun factTextDoesNotAppearInAppLogsAfterForcedCrash() {
-    val device = UiDevice.getInstance(
-      androidx.test.platform.app.InstrumentationRegistry.getInstrumentation(),
-    )
+    val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
     device.pressHome()
     device.waitForIdle()
     device.executeShellCommand("pm clear com.signal.app")
@@ -36,19 +44,19 @@ class SignalUiSmokeTest {
     // with scrolling, then click it.
     val landed = run {
       val deadline = System.currentTimeMillis() + 30_000
-        while (System.currentTimeMillis() < deadline) {
-          if (device.hasObject(By.text("CHECK IT  ↗"))) return@run true
-          device.swipe(
-            device.displayWidth / 2,
-            device.displayHeight * 4 / 5,
-            device.displayWidth / 2,
-            device.displayHeight / 4,
-            16,
-          )
-          device.waitForIdle()
-        }
-        false
+      while (System.currentTimeMillis() < deadline) {
+        if (device.hasObject(By.text("CHECK IT  ↗"))) return@run true
+        device.swipe(
+          device.displayWidth / 2,
+          device.displayHeight * 4 / 5,
+          device.displayWidth / 2,
+          device.displayHeight / 4,
+          16,
+        )
+        device.waitForIdle()
       }
+      false
+    }
     check(landed) { "Expected the LANDING entry button ('CHECK IT  ↗') to render" }
     device.onElement { textAsString() == "CHECK IT  ↗" }.parent.click()
     check(
