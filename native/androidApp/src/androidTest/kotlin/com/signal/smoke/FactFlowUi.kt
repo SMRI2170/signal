@@ -1,4 +1,4 @@
-package com.signal.benchmark
+package com.signal.smoke
 
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice

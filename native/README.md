@@ -71,13 +71,13 @@ Keystoreとpasswordはrepositoryへcommitしないでください。Keystoreは�
 ./gradlew :androidApp:assembleRelease
 ```
 
-Performance checksは専用`:macrobenchmark` moduleでBaseline Profileを生成し、Facts入力からResult表示までを検証します。テスト実行時だけ`-PSIGNAL_BENCHMARK_MODE=true`を渡すと、Judgeを`LocalJudgeGateway`へ切り替え、cloud account storageも無効にします。テストで実アカウントのデータや外部APIを使いません。通常のdebug/release buildはServer APIとaccount storageを使用します。接続済みAndroid emulatorでprofileとviewport smokeを実行できます:
+Performance checksは専用`:macrobenchmark` moduleでBaseline Profileを生成します。Facts入力からResult表示までのviewport smokeは`:androidApp`のinstrumentation testで実行します。テスト実行時だけ`-PSIGNAL_BENCHMARK_MODE=true`を渡すと、Judgeを`LocalJudgeGateway`へ切り替え、cloud account storageも無効にします。テストで実アカウントのデータや外部APIを使いません。通常のdebug/release buildはServer APIとaccount storageを使用します。接続済みAndroid emulatorでprofileとviewport smokeを実行できます:
 
 ```bash
 ./gradlew :androidApp:generateReleaseBaselineProfile --rerun-tasks -PSIGNAL_BENCHMARK_MODE=true
-./gradlew :macrobenchmark:connectedBenchmarkReleaseAndroidTest --rerun-tasks \
+./gradlew :androidApp:connectedDebugAndroidTest --rerun-tasks \
   -PSIGNAL_BENCHMARK_MODE=true \
-  -Pandroid.testInstrumentationRunnerArguments.class=com.signal.benchmark.SignalUiSmokeTest
+  -Pandroid.testInstrumentationRunnerArguments.class=com.signal.smoke.SignalUiSmokeTest
 ```
 
 MacrobenchmarkはAndroidライブラリがemulatorを不正確な性能測定環境として拒否するため、GitHub Actionsの性能測定jobは物理Android 14+端末を接続した`self-hosted`, `linux`, `android-physical` runnerでのみ実行します。`workflow_dispatch`で`run_physical_benchmark`を選ぶとcold startup / Result flowの計測とBaseline Profileをartifactに保存します。通常のGitHub-hosted emulator jobはProfile生成と360dp・430dp相当のLanding → Result UI smokeを実行します。
