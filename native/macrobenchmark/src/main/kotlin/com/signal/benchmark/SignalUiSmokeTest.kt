@@ -33,10 +33,23 @@ class SignalUiSmokeTest {
     device.executeShellCommand("pm clear com.signal.app")
     device.executeShellCommand("am start -n com.signal.app/com.signal.app.MainActivity")
     // Cold AVD boot can leave the first frame blank; wait for the entry button
-    // before clicking it.
-    check(
-      device.wait(Until.hasObject(By.text("CHECK IT  ↗")), 10_000),
-    ) { "Expected the LANDING entry button ('CHECK IT  ↗') to render" }
+    // with scrolling, then click it.
+    val landed = run {
+      val deadline = System.currentTimeMillis() + 30_000
+        while (System.currentTimeMillis() < deadline) {
+          if (device.hasObject(By.text("CHECK IT  ↗"))) return@run true
+          device.swipe(
+            device.displayWidth / 2,
+            device.displayHeight * 4 / 5,
+            device.displayWidth / 2,
+            device.displayHeight / 4,
+            16,
+          )
+          device.waitForIdle()
+        }
+        false
+      }
+    check(landed) { "Expected the LANDING entry button ('CHECK IT  ↗') to render" }
     device.onElement { textAsString() == "CHECK IT  ↗" }.parent.click()
     check(
       device.wait(Until.hasObject(By.clazz("android.widget.EditText")), 10_000),

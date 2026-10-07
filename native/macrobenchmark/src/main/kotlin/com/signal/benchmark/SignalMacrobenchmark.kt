@@ -57,11 +57,25 @@ class SignalBaselineProfile {
     includeInStartupProfile = true,
   ) {
     startActivityAndWait()
-    // Wait for the Compose LANDING screen to render before searching for the entry
-    // button. A cold AVD boot can leave the first frame blank for several seconds.
-    check(
-      device.wait(Until.hasObject(By.text("CHECK IT  ↗")), 10_000),
-    ) { "Expected the LANDING entry button ('CHECK IT  ↗') to render" }
+    // Compose LANDING screen may take a few seconds to render on a cold emulator
+    // boot. Give it up to 30s, scrolling to surface the entry button if it is
+    // below the viewport.
+    val landed = run {
+      val deadline = System.currentTimeMillis() + 30_000
+        while (System.currentTimeMillis() < deadline) {
+          if (device.hasObject(By.text("CHECK IT  ↗"))) return@run true
+          device.swipe(
+            device.displayWidth / 2,
+            device.displayHeight * 4 / 5,
+            device.displayWidth / 2,
+            device.displayHeight / 4,
+            16,
+          )
+          device.waitForIdle()
+        }
+        false
+      }
+    check(landed) { "Expected the LANDING entry button ('CHECK IT  ↗') to render" }
     device.onElement { textAsString() == "CHECK IT  ↗" }.parent.click()
     check(
       device.wait(Until.hasObject(By.text("WHAT HAPPENED?")), 10_000),
