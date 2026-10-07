@@ -30,21 +30,23 @@ private fun UiDevice.diagnose(reason: String) {
 
 internal fun UiDevice.completeFactFlow(checkFactLogs: Boolean = false) {
   // Compose LANDING screen may take a few seconds to render on a cold emulator
-  // boot. Wait for the entry button to appear before any click or scroll.
-  if (!wait(Until.hasObject(By.text("CHECK IT  ↗")), 10_000)) {
-    diagnose("LANDING entry button 'CHECK IT  ↗' not rendered within 10s")
+  // boot. Give it up to 30s, scrolling to surface the entry button if it is
+  // below the viewport. The LANDING layout has a tall verticalScroll column
+  // with the entry button at the bottom, so we may need to scroll even when
+  // the app has already rendered the rest of the page.
+  val landed = run {
+    val deadline = System.currentTimeMillis() + 30_000
+    while (System.currentTimeMillis() < deadline) {
+      if (hasObject(By.text("CHECK IT  ↗"))) return@run true
+      swipe(displayWidth / 2, displayHeight * 4 / 5, displayWidth / 2, displayHeight / 4, 16)
+      waitForIdle()
+    }
+    false
   }
-  check(
-    wait(Until.hasObject(By.text("CHECK IT  ↗")), 10_000),
-  ) { "Expected the LANDING entry button ('CHECK IT  ↗') to render" }
-
-  // Bring the entry button into view if the layout has scrolled past it.
-  repeat(4) {
-    if (hasObject(By.text("CHECK IT  ↗"))) return@repeat
-    swipe(displayWidth / 2, displayHeight * 4 / 5, displayWidth / 2, displayHeight / 4, 16)
-    waitForIdle()
+  if (!landed) {
+    diagnose("LANDING entry button 'CHECK IT  ↗' not rendered within 30s")
   }
-  check(hasObject(By.text("CHECK IT  ↗"))) { "Expected the Fact entry button after scrolling" }
+  check(landed) { "Expected the LANDING entry button ('CHECK IT  ↗') to render" }
   onElement { textAsString() == "CHECK IT  ↗" }.parent.click()
 
   // Wait for the FACTS screen to be ready before reading EditText nodes.
