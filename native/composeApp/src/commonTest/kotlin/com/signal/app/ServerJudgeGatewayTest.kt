@@ -32,10 +32,14 @@ class ServerJudgeGatewayTest {
     val client = mockClient { request ->
       assertTrue(""""jevConsent":true""" in request.bodyText(),
         "Request body must include jevConsent=true, was: ${request.bodyText()}")
+      val echoId = Regex("[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}")
+        .find(request.bodyText())
+        ?.value
+        ?: error("Request body did not include a UUID clientFactId")
       respondJson(
         """
         [{
-          "clientFactId": "00000000-0000-4000-8000-000000000000",
+          "clientFactId": "$echoId",
           "status": "observable",
           "reasonJa": "観測できます。",
           "translationSkipped": false
