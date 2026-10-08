@@ -32,7 +32,16 @@ class ServerJudgeGatewayTest {
     val client = mockClient { request ->
       assertTrue(""""jevConsent":true""" in request.bodyText(),
         "Request body must include jevConsent=true, was: ${request.bodyText()}")
-      respondJson("[]")
+      respondJson(
+        """
+        [{
+          "clientFactId": "00000000-0000-4000-8000-000000000000",
+          "status": "observable",
+          "reasonJa": "観測できます。",
+          "translationSkipped": false
+        }]
+        """.trimIndent(),
+      )
     }
 
     ServerJudgeGateway("https://signal.example", client).validate(listOf("相手から次の予定を聞かれた"), jevConsent = true)
