@@ -33,7 +33,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ rela
       .order("created_at", { ascending: true }),
     admin
       .from("analysis_snapshots")
-      .select("romantic_interest, desire_to_meet, initiative, evidence_sufficiency, fact_count, created_at")
+      .select("signal_level, romantic_interest, desire_to_meet, initiative, evidence_sufficiency, score_schema_version, fact_count, created_at")
       .eq("relationship_id", relationshipId)
       .order("created_at", { ascending: true }),
   ]);
@@ -46,10 +46,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ rela
     displayName: relationship.display_name,
     facts: (factsResult.data ?? []).map((fact) => ({ text: fact.text_original, createdAt: fact.created_at })),
     snapshots: (snapshotsResult.data ?? []).map((snapshot) => ({
-      signalLevel: snapshot.romantic_interest,
+      signalLevel: snapshot.signal_level ?? snapshot.romantic_interest,
+      romanticInterest: snapshot.romantic_interest,
       desireToMeet: snapshot.desire_to_meet,
       initiative: snapshot.initiative,
       evidenceSufficiency: snapshot.evidence_sufficiency,
+      scoreSchemaVersion: snapshot.score_schema_version ?? "legacy-v1",
       factCount: snapshot.fact_count,
       createdAt: snapshot.created_at,
     })),

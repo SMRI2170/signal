@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { SCORE_SCHEMA_VERSION } from "./versions";
+
 const factValidationStatusSchema = z.enum(["observable", "interpretation", "unclear"]);
 
 const impactCategorySchema = z.enum([
@@ -22,18 +24,23 @@ export const factValidationResultSchema = z.object({
   reasonJa: z.string(),
   rewriteExampleJa: z.string().nullable(),
   translatedFactEn: z.string().nullable(),
+  translationSkipped: z.boolean(),
 }).strict();
 export type FactValidationResult = z.infer<typeof factValidationResultSchema>;
 
 const scoreSchema = z.number().int().min(0).max(100);
 
+const evidenceTierSchema = z.enum(["high", "medium", "low"]);
+
 export const analysisResultSchema = z.object({
   scores: z.object({
+    signalLevel: scoreSchema,
     romanticInterest: scoreSchema,
     desireToMeet: scoreSchema,
     initiative: scoreSchema,
     evidenceSufficiency: scoreSchema,
   }).strict(),
+  evidenceSufficiencyTier: evidenceTierSchema,
   impact: z
     .object({
       category: impactCategorySchema,
@@ -42,8 +49,12 @@ export const analysisResultSchema = z.object({
     .nullable(),
   modelVersion: z.string(),
   rubricVersion: z.string(),
+  scoreSchemaVersion: z.string(),
+  translationSkipped: z.boolean().optional(),
 }).strict();
 export type AnalysisResult = z.infer<typeof analysisResultSchema>;
+
+export const ANALYSIS_SCORE_SCHEMA_VERSION_CURRENT = SCORE_SCHEMA_VERSION;
 
 export const validateFactsRequestSchema = z.object({
   facts: z.array(factInputSchema).min(1).max(10),

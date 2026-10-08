@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { JevConsent } from "@/components/jev-consent";
 import type { AnalysisResult, FactValidationResult } from "@/lib/judge/types";
 
 type SaveResponse = {
@@ -22,11 +23,16 @@ export function AddFactForm({ relationshipId, factNumber }: { relationshipId: st
   const [validation, setValidation] = useState<FactValidationResult | null>(null);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [jevConsent, setJevConsent] = useState(false);
   const isReady = text.trim().length >= 10;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!isReady) return;
+    if (!jevConsent) {
+      setMessage("JevへFactを送信することへの同意が必要です。");
+      return;
+    }
 
     setLoading(true);
     setMessage(null);
@@ -36,7 +42,7 @@ export function AddFactForm({ relationshipId, factNumber }: { relationshipId: st
       const response = await fetch(`/api/relationships/${relationshipId}/analyses`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ facts: [{ clientFactId: crypto.randomUUID(), text: text.trim() }], idempotencyKey: crypto.randomUUID() }),
+        body: JSON.stringify({ facts: [{ clientFactId: crypto.randomUUID(), text: text.trim() }], idempotencyKey: crypto.randomUUID(), jevConsent: true }),
       });
       const payload = (await response.json().catch(() => ({}))) as SaveResponse;
       if (response.status === 422 && payload.validations?.[0]) {
@@ -118,6 +124,7 @@ export function AddFactForm({ relationshipId, factNumber }: { relationshipId: st
       <button className="button button-primary add-fact-submit glossy-action glossy-lime" disabled={!isReady || loading} type="submit">
         {loading ? "SIGNALを整理しています…" : "Factを追加して更新"} <span aria-hidden="true">→</span>
       </button>
+      <JevConsent checked={jevConsent} includesSavedFacts onChange={setJevConsent} />
       <p className="form-status">{isReady ? "このFactを追加して、前回からの変化を見よう。" : "10文字以上で追加できます"}</p>
     </form>
   );

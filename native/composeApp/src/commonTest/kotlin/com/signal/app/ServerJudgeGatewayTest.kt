@@ -28,6 +28,31 @@ import kotlin.test.assertTrue
 
 class ServerJudgeGatewayTest {
   @Test
+  fun sendsJevConsentInRequestBody() = runTest {
+    val client = mockClient { request ->
+      assertTrue(""""jevConsent":true""" in request.bodyText(),
+        "Request body must include jevConsent=true, was: ${request.bodyText()}")
+      respondJson("[]")
+    }
+
+    ServerJudgeGateway("https://signal.example", client).validate(listOf("相手から次の予定を聞かれた"), jevConsent = true)
+    client.close()
+  }
+
+  @Test
+  fun rejectsMissingConsent() = runTest {
+    val client = mockClient { respondJson("[]") }
+
+    assertFailsWith<IllegalArgumentException> {
+      ServerJudgeGateway("https://signal.example", client).validate(listOf("相手から次の予定を聞かれた"), jevConsent = false)
+    }
+    assertFailsWith<IllegalArgumentException> {
+      ServerJudgeGateway("https://signal.example", client).analyze(listOf("相手から次の予定を聞かれた"), jevConsent = false)
+    }
+    client.close()
+  }
+
+  @Test
   fun mapsValidationResponseToOriginalFacts() = runTest {
     val client = mockClient { request ->
       assertEquals("/api/facts/validate", request.url.encodedPath)
@@ -50,7 +75,7 @@ class ServerJudgeGatewayTest {
       )
     }
     val validation = ServerJudgeGateway("https://signal.example", client)
-      .validate(listOf("相手から来週空いているか聞かれた"))
+      .validate(listOf("相手から来週空いているか聞かれた"), jevConsent = true)
       .single()
 
     assertEquals(FactStatus.OBSERVABLE, validation.status)
@@ -85,7 +110,7 @@ class ServerJudgeGatewayTest {
     }
 
     val error = assertFailsWith<JudgeGatewayException> {
-      ServerJudgeGateway("https://signal.example", client).validate(listOf("相手から次の予定を聞かれた"))
+      ServerJudgeGateway("https://signal.example", client).validate(listOf("相手から次の予定を聞かれた"), jevConsent = true)
     }
 
     assertEquals("INVALID_RESPONSE", error.code)
@@ -98,7 +123,7 @@ class ServerJudgeGatewayTest {
     val client = mockClient { respondJson("[]") }
 
     val error = assertFailsWith<JudgeGatewayException> {
-      ServerJudgeGateway("https://signal.example", client).validate(listOf("相手から次の予定を聞かれた"))
+      ServerJudgeGateway("https://signal.example", client).validate(listOf("相手から次の予定を聞かれた"), jevConsent = true)
     }
 
     assertEquals("INVALID_RESPONSE", error.code)
@@ -120,7 +145,7 @@ class ServerJudgeGatewayTest {
     }
 
     val error = assertFailsWith<JudgeGatewayException> {
-      ServerJudgeGateway("https://signal.example", client).validate(listOf("相手から次の予定を聞かれた"))
+      ServerJudgeGateway("https://signal.example", client).validate(listOf("相手から次の予定を聞かれた"), jevConsent = true)
     }
 
     assertEquals("INVALID_RESPONSE", error.code)
@@ -135,6 +160,7 @@ class ServerJudgeGatewayTest {
         """
         {
           "scores": {
+            "signalLevel": 73,
             "romanticInterest": 73,
             "desireToMeet": 81,
             "initiative": 68,
@@ -142,17 +168,19 @@ class ServerJudgeGatewayTest {
           },
           "impact": null,
           "modelVersion": "test-model",
-          "rubricVersion": "test-rubric"
+          "rubricVersion": "test-rubric",
+          "scoreSchemaVersion": "signal-score-schema-v2"
         }
         """.trimIndent(),
       )
     }
 
     val analysis = ServerJudgeGateway("https://signal.example", client).analyze(
-      listOf("相手から予定を聞かれた", "帰宅後に相手から連絡が来た", "次の店を相手が提案した"),
-    )
+      listOf("相手から予定を聞かれた", "帰宅後に相手から連絡が来た", "次の店を相手が提案した"), jevConsent = true,
+      )
 
     assertEquals(73, analysis.scores.signalLevel)
+    assertEquals(73, analysis.scores.romanticInterest)
     assertEquals(81, analysis.scores.desireToMeet)
     assertEquals("GOOD SIGNAL", analysis.statusLabel)
     assertEquals(3, analysis.factCount)
@@ -170,8 +198,8 @@ class ServerJudgeGatewayTest {
 
     val error = assertFailsWith<JudgeGatewayException> {
       ServerJudgeGateway("https://signal.example", client).analyze(
-        listOf("十分に長いFactその一", "十分に長いFactその二", "十分に長いFactその三"),
-      )
+        listOf("十分に長いFactその一", "十分に長いFactその二", "十分に長いFactその三"), jevConsent = true,
+        )
     }
 
     assertEquals("RATE_LIMITED", error.code)
@@ -186,8 +214,8 @@ class ServerJudgeGatewayTest {
 
     val error = assertFailsWith<JudgeGatewayException> {
       ServerJudgeGateway("https://signal.example", client).analyze(
-        listOf("十分に長いFactその一", "十分に長いFactその二", "十分に長いFactその三"),
-      )
+        listOf("十分に長いFactその一", "十分に長いFactその二", "十分に長いFactその三"), jevConsent = true,
+        )
     }
 
     assertEquals("INVALID_RESPONSE", error.code)
@@ -217,8 +245,8 @@ class ServerJudgeGatewayTest {
 
     val error = assertFailsWith<JudgeGatewayException> {
       ServerJudgeGateway("https://signal.example", client).analyze(
-        listOf("十分に長いFactその一", "十分に長いFactその二", "十分に長いFactその三"),
-      )
+        listOf("十分に長いFactその一", "十分に長いFactその二", "十分に長いFactその三"), jevConsent = true,
+        )
     }
 
     assertEquals("INVALID_RESPONSE", error.code)
@@ -231,8 +259,8 @@ class ServerJudgeGatewayTest {
 
     val error = assertFailsWith<JudgeGatewayException> {
       ServerJudgeGateway("https://signal.example", client).validate(
-        listOf("相手から来週空いているか聞かれた"),
-      )
+        listOf("相手から来週空いているか聞かれた"), jevConsent = true,
+        )
     }
 
     assertEquals("NETWORK_ERROR", error.code)
@@ -254,8 +282,8 @@ class ServerJudgeGatewayTest {
 
       val error = assertFailsWith<JudgeGatewayException> {
         ServerJudgeGateway("https://signal.example", client).analyze(
-          listOf("十分に長いFactその一", "十分に長いFactその二", "十分に長いFactその三"),
-        )
+          listOf("十分に長いFactその一", "十分に長いFactその二", "十分に長いFactその三"), jevConsent = true,
+          )
       }
 
       assertEquals("HTTP_${status.value}", error.code)
@@ -273,7 +301,7 @@ class ServerJudgeGatewayTest {
     }
 
     val error = assertFailsWith<JudgeGatewayException> {
-      ServerJudgeGateway("https://signal.example", client).validate(listOf("相手から次の予定を聞かれた"))
+      ServerJudgeGateway("https://signal.example", client).validate(listOf("相手から次の予定を聞かれた"), jevConsent = true)
     }
 
     assertEquals("TIMEOUT", error.code)
@@ -289,7 +317,7 @@ class ServerJudgeGatewayTest {
 
     assertFailsWith<CancellationException> {
       ServerJudgeGateway("https://signal.example", client, GatewayDiagnostics(diagnostics::add))
-        .validate(listOf("相手から次の予定を聞かれた"))
+        .validate(listOf("相手から次の予定を聞かれた"), jevConsent = true)
     }
 
     assertTrue(diagnostics.isEmpty())
@@ -303,7 +331,7 @@ class ServerJudgeGatewayTest {
 
     assertFalse(gateway === LocalJudgeGateway)
     val error = assertFailsWith<JudgeGatewayException> {
-      gateway.analyze(listOf("相手から次の予定を聞かれた"))
+      gateway.analyze(listOf("相手から次の予定を聞かれた"), jevConsent = true)
     }
     assertEquals("CONFIGURATION_ERROR", error.code)
     assertFalse(error.retryable)
