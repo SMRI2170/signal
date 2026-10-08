@@ -11,6 +11,7 @@ data class FactValidation(
 
 data class SignalScores(
   val signalLevel: Int,
+  val romanticInterest: Int,
   val desireToMeet: Int,
   val initiative: Int,
   val evidenceSufficiency: Int,
@@ -20,15 +21,25 @@ data class SignalAnalysis(
   val scores: SignalScores,
   val statusLabel: String,
   val factCount: Int,
+  /**
+   * True when at least one Fact was evaluated without going through the
+   * JP→EN translator (NoOp fallback or offline mode). UI surfaces a banner
+   * so the user knows the SIGNAL was judged on the original Japanese text.
+   */
+  val translationSkipped: Boolean = false,
 )
 
 /**
  * This interface is intentionally client-key-free. The production implementation
  * calls SIGNAL's own server, which is the only place a Judge provider key lives.
+ *
+ * `jevConsent` is propagated from the UI to the server. Implementations MUST NOT
+ * call the Judge when the caller has not obtained explicit consent to send Fact
+ * contents to the Judge service.
  */
 interface JudgeGateway {
-  suspend fun validate(facts: List<String>): List<FactValidation>
-  suspend fun analyze(facts: List<String>): SignalAnalysis
+  suspend fun validate(facts: List<String>, jevConsent: Boolean): List<FactValidation>
+  suspend fun analyze(facts: List<String>, jevConsent: Boolean): SignalAnalysis
 }
 
 object LocalJudgeGateway : JudgeGateway {
@@ -40,43 +51,57 @@ object LocalJudgeGateway : JudgeGateway {
   private val strongPositivePatterns = listOf("二人で", "二人きり", "次の", "次回", "また会")
   private val negativePatterns = listOf("延期", "キャンセル", "返信がない", "既読無視", "断ら")
 
-  override suspend fun validate(facts: List<String>): List<FactValidation> = facts.map { raw ->
-    val fact = normalizeFact(raw)
-    when {
-      interpretationPatterns.any(fact::contains) -> FactValidation(
-        text = fact,
-        status = FactStatus.INTERPRETATION,
-        reasonJa = "相手の気持ちや意図についての解釈が含まれています。",
-        rewriteExampleJa = "相手が実際に言ったこと、したこと、回数や日時を書いてみてください。",
-      )
-      unclearPatterns.any { fact == it } -> FactValidation(
-        text = fact,
-        status = FactStatus.UNCLEAR,
-        reasonJa = "出来事の内容を判断するには情報が不足しています。",
-        rewriteExampleJa = "誰が、いつ、何をしたかが分かる形で書いてみてください。",
-      )
-      else -> FactValidation(
-        text = fact,
-        status = FactStatus.OBSERVABLE,
-        reasonJa = "観測可能な出来事として使用できます。",
-      )
+  override suspend fun validate(facts: List<String>, jevConsent: Boolean): List<FactValidation> {
+    require(jevConsent) { "Jevへの送信同意が必要です。" }
+    return facts.map { raw ->
+      val fact = normalizeFact(raw)
+      when {
+        interpretationPatterns.any(fact::contains) -> FactValidation(
+          text = fact,
+          status = FactStatus.INTERPRETATION,
+          reasonJa = "相手の気持ちや意図についての解釈が含まれています。",
+          rewriteExampleJa = "相手が実際に言ったこと、したこと、回数や日時を書いてみてください。",
+        )
+        unclearPatterns.any { fact == it } -> FactValidation(
+          text = fact,
+          status = FactStatus.UNCLEAR,
+          reasonJa = "出来事の内容を判断するには情報が不足しています。",
+          rewriteExampleJa = "誰が、いつ、何をしたかが分かる形で書いてみてください。",
+        )
+        else -> FactValidation(
+          text = fact,
+          status = FactStatus.OBSERVABLE,
+          reasonJa = "観測可能な出来事として使用できます。",
+        )
+      }
     }
   }
 
-  override suspend fun analyze(facts: List<String>): SignalAnalysis {
+  override suspend fun analyze(facts: List<String>, jevConsent: Boolean): SignalAnalysis {
+    require(jevConsent) { "Jevへの送信同意が必要です。" }
     val effects = facts.map(::factEffect)
     val totalEffect = effects.sum()
     val meetingEvidence = facts.count { fact -> listOf("誘われ", "空いている", "会い", "会う", "二人").any(fact::contains) }
     val initiatedByOther = facts.count { it.contains("相手から") || it.contains("相手が") }
+    val romanticInterest = clamp(48 + totalEffect)
+    val desireToMeet = clamp(45 + meetingEvidence * 12 + totalEffect / 2)
+    val initiative = clamp(42 + initiatedByOther * 10 + totalEffect / 3)
+    val evidenceSufficiency = clamp(facts.size * 20)
+    // Rubric (kept in lock-step with src/lib/judge/signal-level.ts):
+    // 0.40 * romanticInterest + 0.30 * desireToMeet + 0.30 * initiative.
+    val signalLevel = clamp(
+      (0.40 * romanticInterest + 0.30 * desireToMeet + 0.30 * initiative).toInt(),
+    )
     val scores = SignalScores(
-      signalLevel = clamp(48 + totalEffect),
-      desireToMeet = clamp(45 + meetingEvidence * 12 + totalEffect / 2),
-      initiative = clamp(42 + initiatedByOther * 10 + totalEffect / 3),
-      evidenceSufficiency = clamp(facts.size * 20),
+      signalLevel = signalLevel,
+      romanticInterest = romanticInterest,
+      desireToMeet = desireToMeet,
+      initiative = initiative,
+      evidenceSufficiency = evidenceSufficiency,
     )
     return SignalAnalysis(
       scores = scores,
-      statusLabel = if (scores.signalLevel >= 70) "GOOD SIGNAL" else "SIGNAL CHECK",
+      statusLabel = if (signalLevel >= 70) "GOOD SIGNAL" else "SIGNAL CHECK",
       factCount = facts.size,
     )
   }

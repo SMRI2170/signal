@@ -35,8 +35,8 @@ describe("relationship summaries route", () => {
       display_name: "アプリの人",
       updated_at: "2026-10-03T09:00:00.000Z",
       analysis_snapshots: [
-        { romantic_interest: 52, created_at: "2026-10-02T09:00:00.000Z" },
-        { romantic_interest: 58, created_at: "2026-10-03T09:00:00.000Z" },
+        { signal_level: 53, romantic_interest: 52, score_schema_version: "signal-score-schema-v2", created_at: "2026-10-02T09:00:00.000Z" },
+        { signal_level: 59, romantic_interest: 58, score_schema_version: "signal-score-schema-v2", created_at: "2026-10-03T09:00:00.000Z" },
       ],
     }]);
     const admin = { from: vi.fn(() => relationshipsQuery) };
@@ -52,7 +52,8 @@ describe("relationship summaries route", () => {
       relationships: [{
         id: "30000000-0000-4000-8000-000000000001",
         displayName: "アプリの人",
-        signalLevel: 58,
+        signalLevel: 59,
+        scoreSchemaVersion: "signal-score-schema-v2",
         updatedAt: "2026-10-03T09:00:00.000Z",
       }],
     });

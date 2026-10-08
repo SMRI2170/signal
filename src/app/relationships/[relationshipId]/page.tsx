@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { EvidenceQualityIndicator } from "@/components/evidence-quality-indicator";
 import { RelationshipQuestions } from "@/components/relationship-questions";
 import { SignalMeter } from "@/components/signal-meter";
 import { Sticker } from "@/components/sticker";
+import { evidenceSufficiencyTier } from "@/lib/judge/signal-level";
 import { createClient } from "@/lib/supabase/server";
 
 const scanDateFormatter = new Intl.DateTimeFormat("ja-JP", { month: "numeric", day: "numeric" });
@@ -13,7 +15,7 @@ export default async function RelationshipPage({ params }: { params: Promise<{ r
   const supabase = await createClient();
   const { data } = await supabase
     .from("relationships")
-    .select("id, display_name, facts(text_original, created_at), analysis_snapshots(romantic_interest, desire_to_meet, initiative, evidence_sufficiency, created_at)")
+    .select("id, display_name, facts(text_original, created_at), analysis_snapshots(signal_level, romantic_interest, desire_to_meet, initiative, evidence_sufficiency, score_schema_version, created_at)")
     .eq("id", relationshipId)
     .maybeSingle();
   if (!data) notFound();
@@ -21,15 +23,23 @@ export default async function RelationshipPage({ params }: { params: Promise<{ r
   const snapshots = [...data.analysis_snapshots].sort((a, b) => b.created_at.localeCompare(a.created_at));
   const current = snapshots[0];
   const previous = snapshots[1];
-  const delta = current && previous ? current.romantic_interest - previous.romantic_interest : null;
+  const currentScore = current ? (current.signal_level ?? current.romantic_interest) : null;
+  const delta = currentScore !== null && previous ? currentScore - (previous.signal_level ?? previous.romantic_interest) : null;
   const hasCurrent = Boolean(current);
-  const status = !hasCurrent ? "MORE FACTS NEEDED" : current.romantic_interest >= 70 ? "GOOD SIGNAL ★" : "SIGNAL CHECK ★";
+  // Low evidence suppresses confident status. See SPEC §72 / #31 acceptance.
+  const evidenceTier = current ? evidenceSufficiencyTier(current.evidence_sufficiency) : "low";
+  const status = !hasCurrent
+    ? "MORE FACTS NEEDED"
+    : evidenceTier === "low"
+      ? "MATERIAL NEEDED"
+      : currentScore !== null && currentScore >= 70
+        ? "GOOD SIGNAL ★"
+        : "SIGNAL CHECK ★";
   const lastScan = current ? scanDateFormatter.format(new Date(current.created_at)) : "NO SCAN";
   const recentFacts = [...data.facts].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 5);
   const metrics = [
     { label: "会いたいサイン", value: current?.desire_to_meet },
     { label: "相手からの積極性", value: current?.initiative },
-    { label: "判断材料", value: current?.evidence_sufficiency },
   ];
 
   return (
@@ -51,14 +61,21 @@ export default async function RelationshipPage({ params }: { params: Promise<{ r
           <span className="snapshot-stamp">{hasCurrent ? "CURRENT" : "PENDING"}</span>
         </div>
         <div className="signal-board-score-row">
-          <strong>{current?.romantic_interest ?? "--"}<small>/ 100</small></strong>
+          <strong>{currentScore ?? "--"}<small>/ 100</small></strong>
           <p className={`score-change ${delta !== null && delta < 0 ? "score-change-down" : ""}`}>
             {delta === null ? "FIRST\nSIGNAL" : `${delta >= 0 ? "↑ +" : "↓ "}${Math.abs(delta)}`}<span>{delta === null ? "最初の記録" : "前回比"}</span>
           </p>
         </div>
-        {hasCurrent ? <SignalMeter value={current.romantic_interest} /> : null}
+        {hasCurrent && currentScore !== null ? <SignalMeter value={currentScore} /> : null}
+        {hasCurrent && current ? (
+          <EvidenceQualityIndicator tier={evidenceTier} />
+        ) : null}
         <div className="scanner-status-row"><span>STATUS <b>{status}</b></span><span>LAST SCAN <b>{lastScan}</b></span></div>
-        <p className="score-board-note">{hasCurrent ? "確率ではなく、入力された事実から算出したSIGNALスコアです。" : "まだSIGNALを表示する材料がありません。最初のFactを追加してください。"}</p>
+        <p className="score-board-note">
+          {hasCurrent
+            ? "確率ではなく、入力された事実から算出したSIGNALスコアです。"
+            : "まだSIGNALを表示する材料がありません。最初のFactを追加してください。"}
+        </p>
         <dl className="signal-metric-list">
           {metrics.map((metric, index) => (
             <div key={metric.label}>

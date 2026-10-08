@@ -2,6 +2,7 @@ import { choice, score, TypeSafeClient } from "@typesafe-ai/sdk";
 
 import { JudgeProviderUnavailableError, type JudgeProvider } from "./provider";
 import { parseJevUsage, type JevUsage } from "./jev-usage";
+import { computeSignalLevel, evidenceSufficiencyTier } from "./signal-level";
 import {
   analysisResultSchema,
   factValidationResultSchema,
@@ -9,6 +10,7 @@ import {
   type FactInput,
   type FactValidationResult,
 } from "./types";
+import { RUBRIC_VERSION, SCORE_SCHEMA_VERSION } from "./versions";
 
 const SCORE_LEVELS = [
   "根拠がない、または明確に否定的な出来事だけがある。",
@@ -143,8 +145,11 @@ export class JevJudgeProvider implements JudgeProvider {
           clientFactId: fact.clientFactId,
           status,
           ...validationCopy(status as keyof typeof OBSERVABILITY_CRITERIA),
-          // Jev returns typed decisions rather than generated strings, so translation stays empty.
+          // Translation happens at the route layer via FactTranslator.
+          // The judge returns typed decisions only, so we surface the
+          // translation status without duplicating the actual English text.
           translatedFactEn: null,
+          translationSkipped: false,
         });
       });
     } catch (error) {
@@ -194,16 +199,25 @@ export class JevJudgeProvider implements JudgeProvider {
         throw new JudgeProviderUnavailableError("TypeSafe returned an invalid analysis result.");
       }
 
+      const romanticInterest = normalizeScore(answers.romanticInterest.score as number);
+      const desireToMeet = normalizeScore(answers.desireToMeet.score as number);
+      const initiative = normalizeScore(answers.initiative.score as number);
+      const evidenceSufficiency = normalizeScore(answers.evidenceSufficiency.score as number);
+      const signalLevel = computeSignalLevel({ romanticInterest, desireToMeet, initiative });
+
       return analysisResultSchema.parse({
         scores: {
-          romanticInterest: normalizeScore(answers.romanticInterest.score as number),
-          desireToMeet: normalizeScore(answers.desireToMeet.score as number),
-          initiative: normalizeScore(answers.initiative.score as number),
-          evidenceSufficiency: normalizeScore(answers.evidenceSufficiency.score as number),
+          signalLevel,
+          romanticInterest,
+          desireToMeet,
+          initiative,
+          evidenceSufficiency,
         },
+        evidenceSufficiencyTier: evidenceSufficiencyTier(evidenceSufficiency),
         impact: null,
         modelVersion: response.model,
-        rubricVersion: "signal-rubric-v1",
+        rubricVersion: RUBRIC_VERSION,
+        scoreSchemaVersion: SCORE_SCHEMA_VERSION,
       });
     } catch (error) {
       if (error instanceof JudgeProviderUnavailableError) throw error;

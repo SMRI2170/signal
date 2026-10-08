@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -96,6 +98,7 @@ fun SignalApp(
   var jevConsentAccepted by remember { mutableStateOf(false) }
   var addFactMessage by remember { mutableStateOf<String?>(null) }
   var isUpdating by remember { mutableStateOf(false) }
+  var factsJevConsent by remember { mutableStateOf(false) }
   val coroutineScope = rememberCoroutineScope()
   val accountState = accountRepository?.state?.collectAsState()?.value ?: AccountState.SignedOut()
   val restoredRelationship = accountRepository?.relationship?.collectAsState()?.value
@@ -199,6 +202,8 @@ fun SignalApp(
         validations = validations,
         message = formMessage,
         isAnalyzing = isAnalyzing,
+        jevConsent = factsJevConsent,
+        onJevConsentChange = { accepted -> factsJevConsent = accepted },
         onBack = { if (isAnalyzing) cancelAnalysis() else screen = Screen.LANDING },
         onCancelAnalysis = cancelAnalysis,
         onChange = { index, value ->
@@ -226,19 +231,21 @@ fun SignalApp(
             cleaned.size < 3 -> formMessage = "最低3つのFactを追加してください。"
             inputErrors.isNotEmpty() -> formMessage = "短すぎるFactがあります。出来事をもう少し具体的に書いてください。"
             cleaned.size != cleaned.distinct().size -> formMessage = "同じFactが重複しています。"
+            !factsJevConsent -> formMessage = "JevへFactを送信することへの同意が必要です。"
             else -> {
+              jevConsentAccepted = true
               analysisGeneration += 1
               val requestGeneration = analysisGeneration
               isAnalyzing = true
               formMessage = null
               analysisJob = coroutineScope.launch {
                 try {
-                  val checked = gateway.validate(cleaned)
+                  val checked = gateway.validate(cleaned, factsJevConsent)
                   validations = checked
                   if (checked.any { it.status != FactStatus.OBSERVABLE }) {
                     formMessage = "解釈を含むFactがあります。実際に起きたことへ書き換えてください。"
                   } else {
-                    analysis = gateway.analyze(cleaned)
+                    analysis = gateway.analyze(cleaned, factsJevConsent)
                     resultRelationshipId = null
                     revealFact = cleaned.first()
                     screen = Screen.RESULT
@@ -285,7 +292,7 @@ fun SignalApp(
               formMessage = "このPreviewではクラウド保存を利用できません。"
             } else {
               coroutineScope.launch {
-                repository.stageGuestResult(facts, relationshipName)
+                repository.stageGuestResult(facts, relationshipName, jevConsent = factsJevConsent)
                 if (accountState !is AccountState.SignedIn) screen = Screen.AUTH
               }
             }
@@ -391,7 +398,7 @@ fun SignalApp(
         onMagicLink = {
           accountRepository?.let { repository ->
             coroutineScope.launch {
-              if (resultRelationshipId == null) repository.stageGuestResult(facts, relationshipName)
+              if (resultRelationshipId == null) repository.stageGuestResult(facts, relationshipName, jevConsent = factsJevConsent)
               repository.sendMagicLink(authEmail)
             }
           }
@@ -399,7 +406,7 @@ fun SignalApp(
         onGoogle = {
           accountRepository?.let { repository ->
             coroutineScope.launch {
-              if (resultRelationshipId == null) repository.stageGuestResult(facts, relationshipName)
+              if (resultRelationshipId == null) repository.stageGuestResult(facts, relationshipName, jevConsent = factsJevConsent)
               repository.signInWithGoogle()
             }
           }
@@ -500,6 +507,8 @@ private fun FactScreen(
   validations: List<FactValidation>,
   message: String?,
   isAnalyzing: Boolean,
+  jevConsent: Boolean,
+  onJevConsentChange: (Boolean) -> Unit,
   onBack: () -> Unit,
   onCancelAnalysis: () -> Unit,
   onChange: (Int, String) -> Unit,
@@ -597,6 +606,10 @@ private fun FactScreen(
             .map { it.text to it.rewriteExampleJa.orEmpty() },
         )
       }
+      JevConsentBlock(
+        checked = jevConsent,
+        onChange = onJevConsentChange,
+      )
       Spacer(Modifier.height(22.dp))
       GlossyButton(
         if (isAnalyzing) "SIGNALを確認中…" else "この内容でSIGNALを見る  →",
@@ -1035,6 +1048,7 @@ private fun ResultScreen(
           evidenceSufficiency = analysis.scores.evidenceSufficiency,
           factCount = analysis.factCount,
           delta = delta,
+          translationSkipped = analysis.translationSkipped,
         )
         Spacer(Modifier.height(24.dp))
         if (isSaved) {
@@ -1419,6 +1433,7 @@ private fun SnapshotReceiptScreen(
         factCount = snapshot.factCount,
         delta = delta,
         receiptState = "SAVED SNAPSHOT",
+        translationSkipped = snapshot.translationSkipped,
       )
       Spacer(Modifier.height(20.dp))
       RealityTip()
@@ -1509,5 +1524,59 @@ private fun RealityTip() {
       fontSize = 13.sp,
       lineHeight = 20.sp,
     )
+  }
+}
+
+@Composable
+private fun JevConsentBlock(checked: Boolean, onChange: (Boolean) -> Unit) {
+  val shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+  Column(
+    Modifier
+      .fillMaxWidth()
+      .clip(shape)
+      .background(SignalColors.White.copy(alpha = .85f))
+      .border(2.dp, SignalColors.Ink, shape)
+      .padding(14.dp),
+  ) {
+    Text(
+      "JEV への送信と、入力内容の取り扱い",
+      color = SignalColors.Ink,
+      fontWeight = FontWeight.Black,
+      fontSize = 12.sp,
+      letterSpacing = 1.sp,
+    )
+    Spacer(Modifier.height(6.dp))
+    Text(
+      "入力したFactをTypeSafe AIのJevへ送信して分析します。TypeSafeの契約では、入力内容はサービス提供などのために処理され、テレメトリは継続利用される場合があります。入力内容の保存期間は明示されていません。本名や連絡先など、本人を特定できる情報は入力しないでください。",
+      color = SignalColors.Ink,
+      fontWeight = FontWeight.SemiBold,
+      fontSize = 12.sp,
+      lineHeight = 18.sp,
+    )
+    Spacer(Modifier.height(8.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      Text(
+        buildString {
+          append("利用規約: https://typesafe.ai/legal/mca · プライバシーポリシー: https://typesafe.ai/legal/privacy-policy")
+        },
+        color = SignalColors.Muted,
+        fontSize = 10.sp,
+        lineHeight = 14.sp,
+      )
+    }
+    Spacer(Modifier.height(8.dp))
+    Row(
+      modifier = Modifier.fillMaxWidth().toggleable(value = checked, role = Role.Checkbox, onValueChange = onChange),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Checkbox(checked = checked, onCheckedChange = onChange)
+      Spacer(Modifier.width(6.dp))
+      Text(
+        "内容を確認し、FactをJevへ送信することに同意します。",
+        color = SignalColors.Ink,
+        fontWeight = FontWeight.Bold,
+        fontSize = 13.sp,
+      )
+    }
   }
 }
