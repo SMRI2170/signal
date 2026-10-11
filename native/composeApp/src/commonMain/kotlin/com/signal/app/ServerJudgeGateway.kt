@@ -74,9 +74,9 @@ fun createJudgeGateway(
 private class UnconfiguredJudgeGateway(
   private val diagnostics: GatewayDiagnostics,
 ) : JudgeGateway {
-  override suspend fun validate(facts: List<String>): List<FactValidation> = throw configurationError()
+  override suspend fun validate(facts: List<String>, jevConsent: Boolean): List<FactValidation> = throw configurationError()
 
-  override suspend fun analyze(facts: List<String>): SignalAnalysis = throw configurationError()
+  override suspend fun analyze(facts: List<String>, jevConsent: Boolean): SignalAnalysis = throw configurationError()
 
   private fun configurationError() = report(
     JudgeGatewayException(
@@ -105,11 +105,12 @@ class ServerJudgeGateway(
 ) : JudgeGateway {
   private val baseUrl = apiBaseUrl.trimEnd('/')
 
-  override suspend fun validate(facts: List<String>): List<FactValidation> {
+  override suspend fun validate(facts: List<String>, jevConsent: Boolean): List<FactValidation> {
+    require(jevConsent) { "Jevへの送信同意が必要です。" }
     val inputs = facts.map { FactInputDto(clientFactId = newSignalUuid(), text = it) }
     val response = post<List<FactValidationDto>>(
       path = "/api/facts/validate",
-      payload = FactsRequestDto(inputs),
+      payload = FactsRequestDto(inputs, jevConsent = true),
     )
     val factsById = inputs.associate { it.clientFactId to it.text }
     if (
@@ -131,13 +132,15 @@ class ServerJudgeGateway(
     }
   }
 
-  override suspend fun analyze(facts: List<String>): SignalAnalysis {
+  override suspend fun analyze(facts: List<String>, jevConsent: Boolean): SignalAnalysis {
+    require(jevConsent) { "Jevへの送信同意が必要です。" }
     val inputs = facts.map { FactInputDto(clientFactId = newSignalUuid(), text = it) }
     val response = post<AnalysisResultDto>(
       path = "/api/analyses/preview",
-      payload = FactsRequestDto(inputs),
+      payload = FactsRequestDto(inputs, jevConsent = true),
     )
     if (
+      response.scores.signalLevel !in 0..100 ||
       response.scores.romanticInterest !in 0..100 ||
       response.scores.desireToMeet !in 0..100 ||
       response.scores.initiative !in 0..100 ||
@@ -147,17 +150,19 @@ class ServerJudgeGateway(
     }
     return SignalAnalysis(
       scores = SignalScores(
-        signalLevel = response.scores.romanticInterest,
+        signalLevel = response.scores.signalLevel,
+        romanticInterest = response.scores.romanticInterest,
         desireToMeet = response.scores.desireToMeet,
         initiative = response.scores.initiative,
         evidenceSufficiency = response.scores.evidenceSufficiency,
       ),
       statusLabel = when {
-        response.scores.romanticInterest >= 70 -> "GOOD SIGNAL"
-        response.scores.romanticInterest >= 45 -> "SIGNAL CHECK"
+        response.scores.signalLevel >= 70 -> "GOOD SIGNAL"
+        response.scores.signalLevel >= 45 -> "SIGNAL CHECK"
         else -> "LOW SIGNAL"
       },
       factCount = facts.size,
+      translationSkipped = response.translationSkipped,
     )
   }
 
@@ -246,7 +251,10 @@ class ServerJudgeGateway(
 }
 
 @Serializable
-private data class FactsRequestDto(val facts: List<FactInputDto>)
+private data class FactsRequestDto(
+  val facts: List<FactInputDto>,
+  val jevConsent: Boolean,
+)
 
 @Serializable
 private data class FactInputDto(
@@ -282,10 +290,13 @@ private data class AnalysisResultDto(
   val impact: ImpactDto? = null,
   val modelVersion: String,
   val rubricVersion: String,
+  val scoreSchemaVersion: String = "",
+  val translationSkipped: Boolean = false,
 )
 
 @Serializable
 private data class ScoresDto(
+  val signalLevel: Int,
   val romanticInterest: Int,
   val desireToMeet: Int,
   val initiative: Int,

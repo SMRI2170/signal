@@ -202,7 +202,7 @@ async function validateFacts(judge: TypeSafeClient, facts: FactInput[], requestI
   });
 }
 
-async function analyzeFacts(judge: TypeSafeClient, facts: FactInput[], requestId: string) {
+async function analyzeFacts(judge: TypeSafeClient, facts: FactInput[], requestId: string, translationSkipped: boolean = true) {
   const response = await judge.systemOne({
     state: {
       facts: facts.map(({ clientFactId, text }) => ({ clientFactId, text })),
@@ -236,17 +236,131 @@ async function analyzeFacts(judge: TypeSafeClient, facts: FactInput[], requestId
     ANALYSIS_ANSWER_KEYS.some((key) => answers[key]?.type !== "score") ||
     values.some((value) => typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > SCORE_LEVELS.length - 1)
   ) throw new Error("Invalid analysis response");
+  const romanticInterest = normalizeScore(answers.romanticInterest.score as number);
+  const desireToMeet = normalizeScore(answers.desireToMeet.score as number);
+  const initiative = normalizeScore(answers.initiative.score as number);
+  const evidenceSufficiency = normalizeScore(answers.evidenceSufficiency.score as number);
+  const signalLevel = clampScore(0.40 * romanticInterest + 0.30 * desireToMeet + 0.30 * initiative);
   return {
     scores: {
-      romanticInterest: normalizeScore(answers.romanticInterest.score as number),
-      desireToMeet: normalizeScore(answers.desireToMeet.score as number),
-      initiative: normalizeScore(answers.initiative.score as number),
-      evidenceSufficiency: normalizeScore(answers.evidenceSufficiency.score as number),
+      signalLevel,
+      romanticInterest,
+      desireToMeet,
+      initiative,
+      evidenceSufficiency,
     },
+    evidenceSufficiencyTier: evidenceSufficiencyTier(evidenceSufficiency),
     impact: null,
     modelVersion: response.model,
     rubricVersion: "signal-rubric-v1",
+    scoreSchemaVersion: "signal-score-schema-v2",
+    translationSkipped,
   };
+}
+
+/**
+ * Translation pipeline for the Native path. The Web path uses
+ * `src/lib/judge/translator-jev.ts`; the Edge Function uses an inline
+ * minimal translator because Deno cannot import the TypeScript module.
+ *
+ * Behaviour:
+ *   - When SIGNAL_TRANSLATOR_PROVIDER === "disabled" / "noop", or when
+ *     no API key is configured, return text mirrored as textEnglish with
+ *     `skipped: true`. Audit / drift tests must detect this.
+ *   - Otherwise call `https://api.typesafe.ai/v1/translate` and assert
+ *     invariants: no_summarization, preserve_negation, no_intent_inference.
+ */
+type TranslatedFact = { textOriginal: string; textEnglish: string; translationVersion: string; skipped: boolean; };
+
+async function translateFacts(facts: FactInput[], _requestId: string): Promise<TranslatedFact[]> {
+  const provider = (Deno.env.get("SIGNAL_TRANSLATOR_PROVIDER") ?? "").toLowerCase();
+  const apiKey = Deno.env.get("TYPESAFE_API_KEY");
+  const useNoop = provider === "disabled" || provider === "noop" || (!provider && !apiKey);
+  if (useNoop) {
+    return facts.map((fact) => ({
+      textOriginal: fact.text,
+      textEnglish: fact.text,
+      translationVersion: "signal-translator-noop-v0",
+      skipped: true,
+    }));
+  }
+
+  const results: TranslatedFact[] = [];
+  for (const fact of facts) {
+    const prompt = [
+      "Translate the following Japanese observation into English. Preserve every observable element:",
+      "- who (subject, other party)",
+      "- action (what was said or done)",
+      "- count (numbers, repetitions)",
+      "- datetime (dates, time-of-day, relative time)",
+      "- negation (denials, refusals, 'no', 'not', 'never', '~ない')",
+      "- conditional ('if', 'when', 'unless', '~ば')",
+      "Do NOT add pronouns, intent, or summarisation that the source does not contain.",
+      "Do NOT guess the gender of 'they'. Keep ambiguous referents as 'the other person'.",
+      `Source: ${fact.text}`,
+    ].join("\n");
+
+    let response: Response;
+    try {
+      response = await fetch("https://api.typesafe.ai/v1/translate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey ?? ""}`,
+        },
+        body: JSON.stringify({ prompt, model: Deno.env.get("TYPESAFE_TRANSLATE_MODEL") ?? "translate-jp-en-v1" }),
+      });
+    } catch (error) {
+      throw new Error(`Translator transport failed for ${fact.clientFactId}: ${(error as Error).message ?? "unknown"}`);
+    }
+    if (!response.ok) {
+      throw new Error(`Translator returned ${response.status} for fact ${fact.clientFactId}`);
+    }
+    const payload = await response.json() as { textEnglish?: unknown };
+    if (typeof payload.textEnglish !== "string" || payload.textEnglish.trim().length === 0) {
+      throw new Error(`Translator returned empty English text for fact ${fact.clientFactId}`);
+    }
+    const textEnglish = payload.textEnglish.trim();
+    const invariantViolation = assertTranslationEnInvariants(fact.text, textEnglish);
+    if (invariantViolation) {
+      throw new Error(`Translator violated invariant "${invariantViolation}" for fact ${fact.clientFactId}`);
+    }
+    results.push({
+      textOriginal: fact.text,
+      textEnglish,
+      translationVersion: "signal-translator-jev-v1",
+      skipped: false,
+    });
+  }
+  return results;
+}
+
+function assertTranslationEnInvariants(original: string, translated: string): string | null {
+  const ratio = translated.length / Math.max(1, original.length);
+  if (ratio < 0.55 || ratio > 6.0) return "no_summarization";
+  const NON_NEGATION_ない_FORMS = ["に違いない", "しかない", "ではない", "んじゃない"];
+  let stripped = original;
+  for (const form of NON_NEGATION_ない_FORMS) {
+    stripped = stripped.split(form).join("");
+  }
+  const originalNegations = (stripped.match(/(?:ない|なかった|ません|ませんでした|否定)/gu) ?? []).length;
+  const translatedNegations = (translated.match(/\b(?:not|never|no\s+(?:longer|more|reply|contact))\b/giu) ?? []).length;
+  if (originalNegations > 0 && translatedNegations === 0) return "preserve_negation";
+  const introducedIntent = /\b(?:in love|romantic(?:ally)?|interested|affection)\b/i.test(translated) &&
+    !/(?:好き|恋愛|好意|興味|気がある)/.test(original);
+  if (introducedIntent) return "no_intent_inference";
+  return null;
+}
+
+function clampScore(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function evidenceSufficiencyTier(evidenceSufficiency: number): "high" | "medium" | "low" {
+  if (evidenceSufficiency >= 60) return "high";
+  if (evidenceSufficiency >= 40) return "medium";
+  return "low";
 }
 
 function clientAddress(request: Request) {
@@ -344,11 +458,16 @@ async function saveRelationship(userId: string, body: unknown, requestId: string
   const input = parseRelationshipRequest(body);
   if (!input) return { error: "INVALID_REQUEST" as const };
   const judge = createJudge();
-  const validations = await validateFacts(judge, input.facts, requestId);
+  const translated = await translateFacts(input.facts, requestId);
+  const judgeInputs = input.facts.map((fact, index) => ({
+    ...fact,
+    text: translated[index]?.skipped ? fact.text : translated[index].textEnglish,
+  }));
+  const validations = await validateFacts(judge, judgeInputs, requestId, translated);
   if (validations.some((validation) => validation.status !== "observable")) {
     return { error: "FACT_NOT_OBSERVABLE" as const };
   }
-  const analysis = await analyzeFacts(judge, input.facts, requestId);
+  const analysis = await analyzeFacts(judge, judgeInputs, requestId, translated.some((t) => t.skipped));
   const response = await serviceRoleRequest("rpc/create_initial_relationship_analysis", {
     method: "POST",
     body: JSON.stringify({
@@ -356,9 +475,12 @@ async function saveRelationship(userId: string, body: unknown, requestId: string
       p_display_name: input.displayName,
       p_facts: input.facts.map((fact, index) => ({
         text_original: fact.text,
-        text_english: validations[index]?.translatedFactEn,
+        text_english: translated[index]?.textEnglish ?? null,
+        translation_version: translated[index]?.translationVersion ?? null,
+        translation_skipped: translated[index]?.skipped ?? true,
       })),
       p_analysis: {
+        signalLevel: analysis.scores.signalLevel,
         romanticInterest: analysis.scores.romanticInterest,
         desireToMeet: analysis.scores.desireToMeet,
         initiative: analysis.scores.initiative,
@@ -442,11 +564,22 @@ async function appendFactAndAnalysis(userId: string, relationshipId: string, bod
   if (factsForAnalysis.length > 30) return { error: "FACT_LIMIT_REACHED" as const };
 
   const judge = createJudge();
-  const validations = await validateFacts(judge, newFacts, requestId);
+  const translated = await translateFacts(newFacts, requestId);
+  const judgeNewFacts = newFacts.map((fact, index) => ({
+    ...fact,
+    text: translated[index]?.skipped ? fact.text : translated[index].textEnglish,
+  }));
+  const translatedExistingFacts = await translateFacts(existingFacts, requestId);
+  const judgeExistingFacts = existingFacts.map((fact, index) => ({
+    ...fact,
+    text: translatedExistingFacts[index]?.skipped ? fact.text : translatedExistingFacts[index].textEnglish,
+  }));
+  const judgeFactsForAnalysis = [...judgeExistingFacts, ...judgeNewFacts];
+  const validations = await validateFacts(judge, judgeNewFacts, requestId, translated);
   if (validations.some((validation) => validation.status !== "observable")) {
     return { error: "FACT_NOT_OBSERVABLE" as const };
   }
-  const analysis = await analyzeFacts(judge, factsForAnalysis, requestId);
+  const analysis = await analyzeFacts(judge, judgeFactsForAnalysis, requestId, translated.some((t) => t.skipped));
   const response = await serviceRoleRequest("rpc/append_facts_and_analysis", {
     method: "POST",
     body: JSON.stringify({
@@ -454,15 +587,19 @@ async function appendFactAndAnalysis(userId: string, relationshipId: string, bod
       p_relationship_id: relationshipId,
       p_facts: newFacts.map((fact, index) => ({
         text_original: fact.text,
-        text_english: validations[index]?.translatedFactEn,
+        text_english: translated[index]?.textEnglish ?? null,
+        translation_version: translated[index]?.translationVersion ?? null,
+        translation_skipped: translated[index]?.skipped ?? true,
       })),
       p_analysis: {
+        signalLevel: analysis.scores.signalLevel,
         romanticInterest: analysis.scores.romanticInterest,
         desireToMeet: analysis.scores.desireToMeet,
         initiative: analysis.scores.initiative,
         evidenceSufficiency: analysis.scores.evidenceSufficiency,
         modelVersion: analysis.modelVersion,
         rubricVersion: analysis.rubricVersion,
+        scoreSchemaVersion: analysis.scoreSchemaVersion,
       },
       p_idempotency_key: candidate.idempotencyKey,
     }),
@@ -680,9 +817,15 @@ Deno.serve(async (request) => {
 
   let judge: TypeSafeClient;
   let validations: Awaited<ReturnType<typeof validateFacts>>;
+  let translated: TranslatedFact[];
   try {
     judge = createJudge();
-    validations = await validateFacts(judge, facts, requestId);
+    translated = await translateFacts(facts, requestId);
+    const judgeInputs = facts.map((fact, index) => ({
+      ...fact,
+      text: translated[index]?.skipped ? fact.text : translated[index].textEnglish,
+    }));
+    validations = await validateFacts(judge, judgeInputs, requestId, translated);
   } catch (error) {
     console.error("validation_unavailable", { requestId, error: error instanceof Error ? error.name : "unknown" });
     return apiError(
@@ -699,7 +842,11 @@ Deno.serve(async (request) => {
     return apiError("FACT_NOT_OBSERVABLE", "観測可能なFactに書き換えてください。", 422, requestId, origin);
   }
   try {
-    return jsonResponse(await analyzeFacts(judge, facts, requestId), 200, requestId, origin);
+    const judgeInputs = facts.map((fact, index) => ({
+      ...fact,
+      text: translated[index]?.skipped ? fact.text : translated[index].textEnglish,
+    }));
+    return jsonResponse(await analyzeFacts(judge, judgeInputs, requestId, translated.some((t) => t.skipped)), 200, requestId, origin);
   } catch (error) {
     console.error("analysis_unavailable", { requestId, error: error instanceof Error ? error.name : "unknown" });
     return apiError(

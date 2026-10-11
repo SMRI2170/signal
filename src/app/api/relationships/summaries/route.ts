@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await createAdminClient()
     .from("relationships")
-    .select("id, display_name, updated_at, analysis_snapshots(romantic_interest, created_at)")
+    .select("id, display_name, updated_at, analysis_snapshots(signal_level, romantic_interest, score_schema_version, created_at)")
     .eq("user_id", userId)
     .order("updated_at", { ascending: false })
     .limit(20);
@@ -26,7 +26,8 @@ export async function GET(request: Request) {
     return {
       id: relationship.id,
       displayName: relationship.display_name,
-      signalLevel: latestSnapshot?.romantic_interest ?? null,
+      signalLevel: latestSnapshot?.signal_level ?? latestSnapshot?.romantic_interest ?? null,
+      scoreSchemaVersion: latestSnapshot?.score_schema_version ?? "legacy-v1",
       updatedAt: relationship.updated_at,
     };
   });

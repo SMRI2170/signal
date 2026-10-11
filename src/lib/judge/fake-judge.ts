@@ -1,5 +1,7 @@
 import type { JudgeProvider } from "./provider";
+import { computeSignalLevel, evidenceSufficiencyTier } from "./signal-level";
 import type { AnalysisResult, FactInput, FactValidationResult } from "./types";
+import { MODEL_VERSION, RUBRIC_VERSION, SCORE_SCHEMA_VERSION } from "./versions";
 
 const INTERPRETATION_PATTERNS = [
   /気がする/u,
@@ -42,6 +44,7 @@ export class FakeJudgeProvider implements JudgeProvider {
           reasonJa: "相手の気持ちや意図についての解釈が含まれています。",
           rewriteExampleJa: "相手が実際に言ったこと、したこと、回数や日時を書いてみてください。",
           translatedFactEn: null,
+          translationSkipped: true,
         };
       }
 
@@ -52,6 +55,7 @@ export class FakeJudgeProvider implements JudgeProvider {
           reasonJa: "出来事の内容を判断するには情報が不足しています。",
           rewriteExampleJa: "誰が、いつ、何をしたかが分かる形で書いてみてください。",
           translatedFactEn: null,
+          translationSkipped: true,
         };
       }
 
@@ -61,6 +65,7 @@ export class FakeJudgeProvider implements JudgeProvider {
         reasonJa: "観測可能な出来事として使用できます。",
         rewriteExampleJa: null,
         translatedFactEn: `[Fake translation] ${fact.text}`,
+        translationSkipped: true,
       };
     });
   }
@@ -71,16 +76,25 @@ export class FakeJudgeProvider implements JudgeProvider {
     const meetingEvidence = facts.filter((fact) => /誘われ|空いている|会(?:い|う)|二人/u.test(fact.text)).length;
     const initiatedByOther = facts.filter((fact) => /相手から|相手が/u.test(fact.text)).length;
 
+    const romanticInterest = clampScore(48 + totalEffect);
+    const desireToMeet = clampScore(45 + meetingEvidence * 12 + totalEffect / 2);
+    const initiative = clampScore(42 + initiatedByOther * 10 + totalEffect / 3);
+    const evidenceSufficiency = clampScore(facts.length * 20);
+    const signalLevel = computeSignalLevel({ romanticInterest, desireToMeet, initiative });
+
     return {
       scores: {
-        romanticInterest: clampScore(48 + totalEffect),
-        desireToMeet: clampScore(45 + meetingEvidence * 12 + totalEffect / 2),
-        initiative: clampScore(42 + initiatedByOther * 10 + totalEffect / 3),
-        evidenceSufficiency: clampScore(facts.length * 20),
+        signalLevel,
+        romanticInterest,
+        desireToMeet,
+        initiative,
+        evidenceSufficiency,
       },
+      evidenceSufficiencyTier: evidenceSufficiencyTier(evidenceSufficiency),
       impact: null,
-      modelVersion: "fake-judge-v1",
-      rubricVersion: "signal-rubric-v1",
+      modelVersion: MODEL_VERSION,
+      rubricVersion: RUBRIC_VERSION,
+      scoreSchemaVersion: SCORE_SCHEMA_VERSION,
     };
   }
 }

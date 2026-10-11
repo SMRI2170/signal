@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState } from "react";
 
+import { JevConsent } from "@/components/jev-consent";
 import { SignalMeter } from "@/components/signal-meter";
 import { getFactInputErrors, normalizeFact } from "@/lib/fact";
 import { fakeJudge } from "@/lib/judge/fake-judge";
@@ -62,6 +63,7 @@ export function FactInput() {
   const [analysisStage, setAnalysisStage] = useState<AnalysisStage>("idle");
   const [draftReady, setDraftReady] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
+  const [jevConsent, setJevConsent] = useState(false);
 
   const errors = useMemo(() => getFactInputErrors(facts), [facts]);
   const filledFactCount = facts.filter((fact) => normalizeFact(fact).length > 0).length;
@@ -145,6 +147,10 @@ export function FactInput() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!isReady) return;
+    if (!isStaticDemo && !jevConsent) {
+      setRequestError("JevへFactを送信することへの同意が必要です。");
+      return;
+    }
 
     const requestFacts: FactInputPayload[] = facts.map((text) => ({ clientFactId: crypto.randomUUID(), text: normalizeFact(text) }));
     setAnalysisStage("checking");
@@ -152,19 +158,19 @@ export function FactInput() {
     setResult(null);
 
     try {
-      const validationResult = isStaticDemo ? await fakeJudge.validateFacts(requestFacts) : await validateFactsOnServer(requestFacts);
+      const validationResult = isStaticDemo ? await fakeJudge.validateFacts(requestFacts) : await validateFactsOnServer(requestFacts, jevConsent);
       setValidations(validationResult);
 
       if (validationResult.some((validation) => validation.status !== "observable")) return;
 
       setAnalysisStage("reading");
-      const analysis = isStaticDemo ? await fakeJudge.analyze(requestFacts) : await analyzeOnServer(requestFacts);
+      const analysis = isStaticDemo ? await fakeJudge.analyze(requestFacts) : await analyzeOnServer(requestFacts, jevConsent);
       showResult(analysis);
 
       if (!isStaticDemo) {
         sessionStorage.setItem(
           GUEST_ANALYSIS_STORAGE_KEY,
-          JSON.stringify({ facts: requestFacts, preview: analysis, createdAt: new Date().toISOString(), idempotencyKey: crypto.randomUUID(), relationshipLabel: "アプリの人" }),
+          JSON.stringify({ facts: requestFacts, preview: analysis, jevConsent, createdAt: new Date().toISOString(), idempotencyKey: crypto.randomUUID(), relationshipLabel: "アプリの人" }),
         );
       }
     } catch (error) {
@@ -257,6 +263,8 @@ export function FactInput() {
       </button>
       <p className="form-status">{isReady ? "3つのFactがそろいました。" : `あと${Math.max(0, 3 - filledFactCount)}つでSIGNALを見られます`}</p>
 
+      {isStaticDemo ? null : <JevConsent checked={jevConsent} onChange={setJevConsent} />}
+
       {analysisStage !== "idle" ? <AnalysisProgress stage={analysisStage} /> : null}
       {result ? <PreviewResult facts={facts.map(normalizeFact).filter(Boolean)} isStaticDemo={isStaticDemo} onSave={saveAndGoToAuth} result={result} /> : null}
     </form>
@@ -288,21 +296,21 @@ function AnalysisProgress({ stage }: { stage: AnalysisStage }) {
   );
 }
 
-async function validateFactsOnServer(facts: FactInputPayload[]): Promise<FactValidationResult[]> {
+async function validateFactsOnServer(facts: FactInputPayload[], jevConsent: boolean): Promise<FactValidationResult[]> {
   const response = await fetch("/api/facts/validate", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-signal-guest-session": getGuestSessionId() },
-    body: JSON.stringify({ facts }),
+    body: JSON.stringify({ facts, jevConsent }),
   });
   if (!response.ok) throw new Error("入力内容を確認できませんでした。もう一度お試しください。");
   return (await response.json()) as FactValidationResult[];
 }
 
-async function analyzeOnServer(facts: FactInputPayload[]): Promise<AnalysisResult> {
+async function analyzeOnServer(facts: FactInputPayload[], jevConsent: boolean): Promise<AnalysisResult> {
   const response = await fetch("/api/analyses/preview", {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-signal-guest-session": getGuestSessionId() },
-    body: JSON.stringify({ facts }),
+    body: JSON.stringify({ facts, jevConsent }),
   });
   if (!response.ok) throw new Error("分析を完了できませんでした。時間をおいてもう一度お試しください。");
   return (await response.json()) as AnalysisResult;
@@ -337,6 +345,11 @@ function PreviewResult({ facts, isStaticDemo, onSave, result }: { facts: string[
         {metrics.map(([label, score]) => <div key={label}><dt>{label}</dt><dd>{score}</dd></div>)}
       </dl>
       <p className="result-disclaimer">これは確率ではなく、入力された事実から見えるSIGNALスコアです。相手の実際の感情を特定するものではありません。</p>
+      {result.translationSkipped ? (
+        <p className="translation-banner" role="status">
+          翻訳を介さず日本語原文のまま判定しています。判定の安定性は参考値です。
+        </p>
+      ) : null}
       {isStaticDemo ? <p className="preview-note">これは公開デモ用のFake Judgeによる結果です。入力内容は保存・送信されません。</p> : <div className="save-prompt">
         <label htmlFor="relationship-label">この記録の名前</label>
         <input id="relationship-label" maxLength={80} onChange={(event) => setRelationshipLabel(event.target.value)} value={relationshipLabel} />

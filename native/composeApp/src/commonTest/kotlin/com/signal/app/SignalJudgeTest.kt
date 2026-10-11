@@ -15,7 +15,7 @@ class SignalJudgeTest {
   @Test
   fun separatesObservableFactsFromInterpretations() = runTest {
     val validations = LocalJudgeGateway.validate(
-      listOf("相手から来週空いているか聞かれた", "相手は絶対に自分のことが好き"),
+      listOf("相手から来週空いているか聞かれた", "相手は絶対に自分のことが好き"), jevConsent = true,
     )
 
     assertEquals(listOf(FactStatus.OBSERVABLE, FactStatus.INTERPRETATION), validations.map { it.status })
@@ -24,7 +24,7 @@ class SignalJudgeTest {
   @Test
   fun producesBoundedSignalScores() = runTest {
     val analysis = LocalJudgeGateway.analyze(
-      listOf("相手から食事に誘われた", "相手から来週空いているか聞かれた", "二人で3時間話した"),
+      listOf("相手から食事に誘われた", "相手から来週空いているか聞かれた", "二人で3時間話した"), jevConsent = true,
     )
 
     assertTrue(analysis.scores.signalLevel > 48)

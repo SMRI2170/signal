@@ -8,7 +8,7 @@ class SignalHistoryTest {
   fun calculatesSnapshotDeltasInRecordedOrder() {
     val snapshots = listOf(38, 42, 41, 54, 73).mapIndexed { index, score ->
       SavedSnapshot(
-        scores = SignalScores(score, score, score, score),
+        scores = SignalScores(signalLevel = score, romanticInterest = score, desireToMeet = score, initiative = score, evidenceSufficiency = score),
         createdAt = "2026-10-0${index + 1}T00:00:00Z",
       )
     }
@@ -20,7 +20,7 @@ class SignalHistoryTest {
   fun keepsUnchangedSnapshotsAndShowsFactsAddedAtEachSnapshot() {
     val snapshots = listOf(48 to 3, 48 to 3, 54 to 4, 54 to 5).mapIndexed { index, (score, factCount) ->
       SavedSnapshot(
-        scores = SignalScores(score, score, score, score),
+        scores = SignalScores(signalLevel = score, romanticInterest = score, desireToMeet = score, initiative = score, evidenceSufficiency = score),
         createdAt = "2026-10-0${index + 1}T00:00:00Z",
         factCount = factCount,
       )

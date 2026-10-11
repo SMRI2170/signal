@@ -52,6 +52,7 @@ data class SavedSnapshot(
   val scores: SignalScores,
   val createdAt: String,
   val factCount: Int = 0,
+  val translationSkipped: Boolean = false,
 )
 
 data class RelationshipSummary(
@@ -72,6 +73,7 @@ private data class PendingGuestDraft(
   val displayName: String,
   val facts: List<String>,
   val idempotencyKey: String,
+  val jevConsent: Boolean = false,
 )
 
 @Serializable
@@ -138,14 +140,16 @@ class SignalAccountRepository internal constructor(
     }
   }
 
-  suspend fun stageGuestResult(facts: List<String>, displayName: String) {
+  suspend fun stageGuestResult(facts: List<String>, displayName: String, jevConsent: Boolean = false) {
     val normalized = facts.map(::normalizeFact).filter(String::isNotEmpty)
     require(normalized.size in 3..10)
+    require(jevConsent) { "Jevへの送信同意が必要です。" }
     val previous = readPendingDraft()
     val draft = PendingGuestDraft(
       displayName = displayName.trim().ifBlank { "アプリの人" }.take(80),
       facts = normalized,
-      idempotencyKey = previous?.takeIf { it.facts == normalized }?.idempotencyKey ?: newSignalUuid(),
+      idempotencyKey = previous?.takeIf { it.facts == normalized && it.jevConsent }?.idempotencyKey ?: newSignalUuid(),
+      jevConsent = jevConsent,
     )
     store.write(PENDING_DRAFT_KEY, json.encodeToString(PendingGuestDraft.serializer(), draft))
     if (_state.value is AccountState.SignedIn) {
@@ -313,6 +317,7 @@ class SignalAccountRepository internal constructor(
               displayName = draft.displayName,
               facts = draft.facts.map { FactRequest(clientFactId = newSignalUuid(), text = it) },
               idempotencyKey = draft.idempotencyKey,
+              jevConsent = draft.jevConsent,
             ),
           )
         }
@@ -460,12 +465,14 @@ class SignalAccountRepository internal constructor(
       SavedSnapshot(
         scores = SignalScores(
           signalLevel = snapshot.signalLevel,
+          romanticInterest = snapshot.signalLevel,
           desireToMeet = snapshot.desireToMeet,
           initiative = snapshot.initiative,
           evidenceSufficiency = snapshot.evidenceSufficiency,
         ),
         createdAt = snapshot.createdAt,
         factCount = snapshot.factCount,
+        translationSkipped = snapshot.translationSkipped,
       )
     },
   )
@@ -514,6 +521,7 @@ private data class SaveRelationshipRequest(
   val displayName: String,
   val facts: List<FactRequest>,
   val idempotencyKey: String,
+  val jevConsent: Boolean,
 )
 
 @Serializable
@@ -564,6 +572,7 @@ private data class SnapshotResponse(
   val evidenceSufficiency: Int,
   val createdAt: String,
   val factCount: Int = 0,
+  val translationSkipped: Boolean = false,
 )
 
 @Serializable

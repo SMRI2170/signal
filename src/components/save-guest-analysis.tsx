@@ -7,7 +7,7 @@ import type { FactInput } from "@/lib/judge/types";
 
 const STORAGE_KEY = "signal.guestAnalysis.v1";
 
-type GuestAnalysis = { facts: FactInput[]; createdAt: string; idempotencyKey: string; relationshipLabel?: string };
+type GuestAnalysis = { facts: FactInput[]; jevConsent?: boolean; createdAt: string; idempotencyKey: string; relationshipLabel?: string };
 type SaveState = "saving" | "saved" | "missing" | "error";
 
 export function SaveGuestAnalysis() {
@@ -41,6 +41,7 @@ export function SaveGuestAnalysis() {
         displayName: guest.relationshipLabel?.trim() || "アプリの人",
         facts: guest.facts,
         idempotencyKey: guest.idempotencyKey,
+        jevConsent: guest.jevConsent === true,
       }),
     })
       .then(async (response) => {

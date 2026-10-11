@@ -42,10 +42,12 @@ describe("relationship detail route", () => {
     const relationshipQuery = makeRelationshipQuery({ id: relationshipId, display_name: "アプリの人" });
     const factsQuery = makeListQuery([{ text_original: "次の週末に会えるか聞かれた。", created_at: "2026-10-01T09:00:00.000Z" }]);
     const snapshotsQuery = makeListQuery([{
+      signal_level: 59,
       romantic_interest: 58,
       desire_to_meet: 64,
       initiative: 51,
       evidence_sufficiency: 40,
+      score_schema_version: "signal-score-schema-v2",
       fact_count: 3,
       created_at: "2026-10-01T10:00:00.000Z",
     }]);
@@ -71,10 +73,12 @@ describe("relationship detail route", () => {
       displayName: "アプリの人",
       facts: [{ text: "次の週末に会えるか聞かれた。", createdAt: "2026-10-01T09:00:00.000Z" }],
       snapshots: [{
-        signalLevel: 58,
+        signalLevel: 59,
+        romanticInterest: 58,
         desireToMeet: 64,
         initiative: 51,
         evidenceSufficiency: 40,
+        scoreSchemaVersion: "signal-score-schema-v2",
         factCount: 3,
         createdAt: "2026-10-01T10:00:00.000Z",
       }],
