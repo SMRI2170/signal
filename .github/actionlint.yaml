@@ -1,0 +1,4 @@
+# Project-specific runner label used by the opt-in physical Android macrobenchmark job.
+self-hosted-runner:
+  labels:
+    - android-physical
