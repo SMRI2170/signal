@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="176" height="176" viewBox="0 0 176 176"><defs>
+<linearGradient id="chrome" x1="0%" y1="0%" x2="70%" y2="100%"><stop offset="0%" stop-color="#4B2C50"/><stop offset="10%" stop-color="#FFF9FF"/><stop offset="23%" stop-color="#D58EED"/><stop offset="39%" stop-color="#FFFFFF"/><stop offset="55%" stop-color="#74516A"/><stop offset="72%" stop-color="#E9E1FF"/><stop offset="88%" stop-color="#FF8AC9"/><stop offset="100%" stop-color="#48284F"/></linearGradient>
+<linearGradient id="pink" x1="0%" y1="0%" x2="10%" y2="100%"><stop offset="0%" stop-color="#FFBDEC"/><stop offset="24%" stop-color="#FF7BCB"/><stop offset="60%" stop-color="#F64FBA"/><stop offset="100%" stop-color="#B82C93"/></linearGradient>
+<linearGradient id="glass" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#FFFFFF" stop-opacity=".97"/><stop offset="54%" stop-color="#F9DBFF" stop-opacity=".84"/><stop offset="100%" stop-color="#D8B5EF" stop-opacity=".95"/></linearGradient>
+<linearGradient id="rainbow" x1="0%" y1="0%" x2="100%" y2="40%"><stop offset="0%" stop-color="#FF8FD5"/><stop offset="23%" stop-color="#BE9EFF"/><stop offset="43%" stop-color="#9FEAFF"/><stop offset="68%" stop-color="#F59EF2"/><stop offset="100%" stop-color="#FF5CAA"/></linearGradient>
+</defs>
+<circle cx="88" cy="91" r="80" fill="#231B32" opacity=".1"/>
+<circle cx="88" cy="83" r="79" fill="url(#chrome)" stroke="#44274F" stroke-width="4"/>
+<circle cx="88" cy="83" r="69" fill="url(#pink)" stroke="#FFF8FF" stroke-width="3"/>
+<ellipse cx="72" cy="48" rx="45" ry="16" transform="rotate(-12 72 48)" fill="#FFF" opacity=".48"/>
+<path d="M35 127 Q88 162 142 125" fill="none" stroke="#FFDBFB" stroke-width="5" opacity=".7"/>
+<path d="M140 28 Q142 36 150 38 Q142 40 140 48 Q138 40 130 38 Q138 36 140 28Z" fill="#FFF" opacity=".98"/><path d="M35 59 Q37 63 41 65 Q37 67 35 71 Q33 67 29 65 Q33 63 35 59Z" fill="#FFF" opacity=".98"/>
+<!-- Plus symbol is a separate semantic UI layer drawn in Compose/CSS. -->
+</svg>
