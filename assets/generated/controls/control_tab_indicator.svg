@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="40" viewBox="0 0 240 40"><defs>
+<linearGradient id="chrome" x1="0%" y1="0%" x2="70%" y2="100%"><stop offset="0%" stop-color="#4B2C50"/><stop offset="10%" stop-color="#FFF9FF"/><stop offset="23%" stop-color="#D58EED"/><stop offset="39%" stop-color="#FFFFFF"/><stop offset="55%" stop-color="#74516A"/><stop offset="72%" stop-color="#E9E1FF"/><stop offset="88%" stop-color="#FF8AC9"/><stop offset="100%" stop-color="#48284F"/></linearGradient>
+<linearGradient id="pink" x1="0%" y1="0%" x2="10%" y2="100%"><stop offset="0%" stop-color="#FFBDEC"/><stop offset="24%" stop-color="#FF7BCB"/><stop offset="60%" stop-color="#F64FBA"/><stop offset="100%" stop-color="#B82C93"/></linearGradient>
+<linearGradient id="glass" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#FFFFFF" stop-opacity=".97"/><stop offset="54%" stop-color="#F9DBFF" stop-opacity=".84"/><stop offset="100%" stop-color="#D8B5EF" stop-opacity=".95"/></linearGradient>
+<linearGradient id="rainbow" x1="0%" y1="0%" x2="100%" y2="40%"><stop offset="0%" stop-color="#FF8FD5"/><stop offset="23%" stop-color="#BE9EFF"/><stop offset="43%" stop-color="#9FEAFF"/><stop offset="68%" stop-color="#F59EF2"/><stop offset="100%" stop-color="#FF5CAA"/></linearGradient>
+</defs>
+<rect x="4" y="10" width="232" height="26" rx="13" fill="#2D2145" opacity=".11"/>
+<rect x="3" y="4" width="234" height="26" rx="13" fill="url(#chrome)" stroke="#542D61" stroke-width="1.5"/>
+<rect x="8" y="8" width="224" height="17" rx="8.5" fill="url(#rainbow)"/>
+<path d="M20 11 L210 11" stroke="#FFF" stroke-opacity=".64" stroke-width="3" stroke-linecap="round"/>
+<path d="M213 6 Q215 9 218 11 Q215 13 213 16 Q211 13 208 11 Q211 9 213 6Z" fill="#FFF" opacity=".98"/>
+</svg>
