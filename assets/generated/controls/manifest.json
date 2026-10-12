@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "assets": [
+    {
+      "id": "control_primary_gloss_surface",
+      "category": "controls",
+      "status": "generated",
+      "rendering": "decorative_image",
+      "source": "vector-authored-2026-10-13",
+      "files": {
+        "svg": "assets/generated/controls/control_primary_gloss_surface.svg"
+      },
+      "usage": [
+        "landing",
+        "fact_input"
+      ],
+      "checks": {
+        "generated": true,
+        "isolated": true,
+        "qaPassed": false,
+        "optimized": false,
+        "adopted": false,
+        "integrated": false
+      }
+    },
+    {
+      "id": "control_secondary_glass_frame",
+      "category": "controls",
+      "status": "generated",
+      "rendering": "decorative_image",
+      "source": "vector-authored-2026-10-13",
+      "files": {
+        "svg": "assets/generated/controls/control_secondary_glass_frame.svg"
+      },
+      "usage": [
+        "fact_input",
+        "result"
+      ],
+      "checks": {
+        "generated": true,
+        "isolated": true,
+        "qaPassed": false,
+        "optimized": false,
+        "adopted": false,
+        "integrated": false
+      }
+    },
+    {
+      "id": "control_floating_add_decoration",
+      "category": "controls",
+      "status": "generated",
+      "rendering": "decorative_image",
+      "source": "vector-authored-2026-10-13",
+      "files": {
+        "svg": "assets/generated/controls/control_floating_add_decoration.svg"
+      },
+      "usage": [
+        "history",
+        "fact_input"
+      ],
+      "checks": {
+        "generated": true,
+        "isolated": true,
+        "qaPassed": false,
+        "optimized": false,
+        "adopted": false,
+        "integrated": false
+      }
+    },
+    {
+      "id": "control_selection_chip_accent",
+      "category": "controls",
+      "status": "generated",
+      "rendering": "decorative_image",
+      "source": "vector-authored-2026-10-13",
+      "files": {
+        "svg": "assets/generated/controls/control_selection_chip_accent.svg"
+      },
+      "usage": [
+        "fact_input",
+        "filters"
+      ],
+      "checks": {
+        "generated": true,
+        "isolated": true,
+        "qaPassed": false,
+        "optimized": false,
+        "adopted": false,
+        "integrated": false
+      }
+    },
+    {
+      "id": "control_tab_indicator",
+      "category": "controls",
+      "status": "generated",
+      "rendering": "decorative_image",
+      "source": "vector-authored-2026-10-13",
+      "files": {
+        "svg": "assets/generated/controls/control_tab_indicator.svg"
+      },
+      "usage": [
+        "history",
+        "detail"
+      ],
+      "checks": {
+        "generated": true,
+        "isolated": true,
+        "qaPassed": false,
+        "optimized": false,
+        "adopted": false,
+        "integrated": false
+      }
+    }
+  ]
+}
