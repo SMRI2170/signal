@@ -16,7 +16,10 @@
     "evaluate:jev": "node scripts/evaluate-jev.mjs",
     "quality:dead-code": "npx --yes knip@6.39.0",
     "quality:cycles": "dependency-cruiser src --config .dependency-cruiser.cjs",
-    "quality:bundle": "node scripts/check-bundle-size.mjs"
+    "quality:bundle": "node scripts/check-bundle-size.mjs",
+    "assets:validate": "node scripts/assets-validate.mjs",
+    "assets:build": "node scripts/assets-build.mjs",
+    "assets:preview": "node scripts/assets-preview.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -47,7 +50,8 @@
   "knip": {
     "entry": [
       "src/**/*.{ts,tsx,css}",
-      "public/sw.js"
+      "public/sw.js",
+      "scripts/assets-schema.test.mjs"
     ],
     "project": [
       "src/**/*.{ts,tsx,css}",

@@ -1,0 +1,192 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-13T03:00:00Z",
+  "description": "Single Source of Truth for SIGNAL design assets. All paths are repo-relative. Web delivery is rebuilt from this manifest by `npm run assets:build`; KMP delivery is documented in assets/README.md until an automated copy lands.",
+  "categories": [
+    { "id": "references", "label": "References", "description": "AI-generated originals and external references. Not delivered to users." },
+    { "id": "stickers", "label": "Stickers", "description": "1-file-1-asset Y2K stickers. Adopted masters used in product surfaces." },
+    { "id": "controls", "label": "Controls", "description": "Decorative bitmaps for buttons, chips, tabs. Labels, state, and scores stay in code." },
+    { "id": "panels", "label": "Panels", "description": "Fact Ticket, Receipt, History card and chrome bezel textures." },
+    { "id": "scanner", "label": "Scanner", "description": "Judge flow ornaments, scan rings, glow overlays, result frames and seals." },
+    { "id": "branding", "label": "Branding", "description": "Wordmarks, app icons, and hero decorations." },
+    { "id": "textures", "label": "Textures", "description": "Hologram foil, paper, gel, grid and collage backgrounds." }
+  ],
+  "assets": [
+    {
+      "id": "sticker_chrome_heart",
+      "category": "stickers",
+      "status": "integrated",
+      "rendering": "decorative_image",
+      "source": "renamed from public/stickers/chrome-heart.webp (2026-10-04)",
+      "files": {
+        "image": "assets/stickers/sticker_chrome_heart.webp"
+      },
+      "usage": ["landing", "fact_input", "real_sticker_grid"],
+      "bytes": 17906,
+      "sha256": "80f74e52052df22e6fff437c2917293c4c09d6e5de05ef715d7eb790a1b0b588",
+      "checks": {
+        "generated": true,
+        "isolated": true,
+        "qaPassed": false,
+        "optimized": true,
+        "adopted": true,
+        "integrated": true
+      },
+      "notes": "Re-homed from public/stickers/. Referenced by src/components/real-sticker.tsx; rebuilt into public/stickers/ by assets:build to keep delivery URL stable."
+    },
+    {
+      "id": "sticker_scanner_orb",
+      "category": "stickers",
+      "status": "integrated",
+      "rendering": "decorative_image",
+      "source": "renamed from public/stickers/scanner-orb.webp (2026-10-04)",
+      "files": {
+        "image": "assets/stickers/sticker_scanner_orb.webp"
+      },
+      "usage": ["scanner", "result", "real_sticker_grid"],
+      "bytes": 23868,
+      "sha256": "225452730b2c22710b769f53de93ece717b6c03cec5370a181b1c374094a86ce",
+      "checks": {
+        "generated": true,
+        "isolated": true,
+        "qaPassed": false,
+        "optimized": true,
+        "adopted": true,
+        "integrated": true
+      },
+      "notes": "Re-homed from public/stickers/. Referenced by src/components/real-sticker.tsx; rebuilt into public/stickers/ by assets:build to keep delivery URL stable."
+    },
+    {
+      "id": "brand_signal_mark",
+      "category": "branding",
+      "status": "integrated",
+      "rendering": "logo_vector",
+      "source": "renamed from public/icons/signal-mark.svg (2026-10-04)",
+      "files": {
+        "vector": "assets/branding/brand_signal_mark.svg"
+      },
+      "usage": ["manifest_icon", "layout_icon", "favicon"],
+      "bytes": 945,
+      "sha256": "328b564e0ef2f228fbed942aab3431e5a757bb9852126c696b6eb2999eee59fe",
+      "checks": {
+        "generated": true,
+        "isolated": true,
+        "qaPassed": false,
+        "optimized": true,
+        "adopted": true,
+        "integrated": true
+      },
+      "notes": "Re-homed from public/icons/. Referenced by src/app/manifest.ts and src/app/layout.tsx; rebuilt into public/icons/ by assets:build to keep delivery URL stable."
+    },
+    {
+      "id": "control_primary_gloss_surface",
+      "category": "controls",
+      "status": "generated",
+      "rendering": "decorative_image",
+      "source": "vector-authored-2026-10-13 (from PR #91)",
+      "files": {
+        "vector": "assets/controls/control_primary_gloss_surface.svg"
+      },
+      "usage": ["landing", "fact_input"],
+      "bytes": 2118,
+      "sha256": "79362a860bedfe09d7cc33fa5af31ab01c5375b32edecbe96b6873e58bc8cf3d",
+      "checks": {
+        "generated": true,
+        "isolated": true,
+        "qaPassed": false,
+        "optimized": false,
+        "adopted": false,
+        "integrated": false
+      },
+      "notes": "Imported from PR #91. Labels, touch semantics and state values must stay in Compose/CSS."
+    },
+    {
+      "id": "control_secondary_glass_frame",
+      "category": "controls",
+      "status": "generated",
+      "rendering": "decorative_image",
+      "source": "vector-authored-2026-10-13 (from PR #91)",
+      "files": {
+        "vector": "assets/controls/control_secondary_glass_frame.svg"
+      },
+      "usage": ["fact_input", "result"],
+      "bytes": 2119,
+      "sha256": "6a0028ad6cb9409791d137b00c2854f4e652d68c87e81cbbb45c4f3012e3a9cf",
+      "checks": {
+        "generated": true,
+        "isolated": true,
+        "qaPassed": false,
+        "optimized": false,
+        "adopted": false,
+        "integrated": false
+      },
+      "notes": "Imported from PR #91. Labels, touch semantics and state values must stay in Compose/CSS."
+    },
+    {
+      "id": "control_floating_add_decoration",
+      "category": "controls",
+      "status": "generated",
+      "rendering": "decorative_image",
+      "source": "vector-authored-2026-10-13 (from PR #91)",
+      "files": {
+        "vector": "assets/controls/control_floating_add_decoration.svg"
+      },
+      "usage": ["history", "fact_input"],
+      "bytes": 2013,
+      "sha256": "1d9de6084d950494a5e57fd6fd8358c172bbcc2edcb21fb620e00fcc0c643870",
+      "checks": {
+        "generated": true,
+        "isolated": true,
+        "qaPassed": false,
+        "optimized": false,
+        "adopted": false,
+        "integrated": false
+      },
+      "notes": "Imported from PR #91. Decoration only; tap target lives in Compose/CSS."
+    },
+    {
+      "id": "control_selection_chip_accent",
+      "category": "controls",
+      "status": "generated",
+      "rendering": "decorative_image",
+      "source": "vector-authored-2026-10-13 (from PR #91)",
+      "files": {
+        "vector": "assets/controls/control_selection_chip_accent.svg"
+      },
+      "usage": ["fact_input", "filters"],
+      "bytes": 1918,
+      "sha256": "c74ae4b1d95fd41da13c44fd36ddfdbc6ec1a97496bf22f4aa11450757e455a1",
+      "checks": {
+        "generated": true,
+        "isolated": true,
+        "qaPassed": false,
+        "optimized": false,
+        "adopted": false,
+        "integrated": false
+      },
+      "notes": "Imported from PR #91. Selection state, label and count stay in code."
+    },
+    {
+      "id": "control_tab_indicator",
+      "category": "controls",
+      "status": "generated",
+      "rendering": "decorative_image",
+      "source": "vector-authored-2026-10-13 (from PR #91)",
+      "files": {
+        "vector": "assets/controls/control_tab_indicator.svg"
+      },
+      "usage": ["history", "detail"],
+      "bytes": 1774,
+      "sha256": "07359fa49d218e78478c72fa269c43511695e65ff2749e94ae93fadd520a8b5d",
+      "checks": {
+        "generated": true,
+        "isolated": true,
+        "qaPassed": false,
+        "optimized": false,
+        "adopted": false,
+        "integrated": false
+      },
+      "notes": "Imported from PR #91. Selected tab and count must stay in code."
+    }
+  ]
+}
