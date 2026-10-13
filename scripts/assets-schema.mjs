@@ -61,6 +61,12 @@ export const assetSchema = z
       })
       .strict()
       .refine((v) => Object.keys(v).length > 0, { message: "files object is empty" }),
+    delivery: z
+      .object({
+        public: z.string().min(1).optional(),
+      })
+      .strict()
+      .optional(),
     usage: z.array(z.string().min(1)).min(1),
     width: z.number().int().nonnegative().optional(),
     height: z.number().int().nonnegative().optional(),

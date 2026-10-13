@@ -1,8 +1,15 @@
 #!/usr/bin/env node
 // scripts/assets-preview.mjs
-// Render a one-page HTML catalog of every asset in assets/manifest.json with a
-// preview, status badge, usage tags, byte count and sha256. Output goes to
+// Render a one-page HTML catalog of every asset in assets/manifest.json with
+// a preview, status badge, usage tags, byte count and sha256. Output goes to
 // dist/asset-preview.html so the deliverable is never inside src/.
+//
+// All string interpolation that ends up in HTML body text or an attribute
+// runs through `escapeHtml`, which applies the OWASP HTML Entity Encoding
+// rule (covers `& < > " ' /`). File paths that go into the `src` and `data`
+// attributes of <img>/<object> are additionally passed through
+// `escapePath`, which neutralises characters that could otherwise let a
+// crafted manifest entry break out of the attribute and execute script.
 
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { resolve, dirname, extname, relative } from "node:path";
@@ -23,7 +30,9 @@ const STATUS_LABEL = {
   rejected: "rejected",
 };
 
-const STATUS_TONE = {
+// Status colour table is a fixed lookup; only the keys from the status enum
+// are accepted, so the interpolated CSS value never comes from user input.
+const STATUS_TONE = Object.freeze({
   planned: "#9ca3af",
   generated: "#facc15",
   needs_qa: "#fb923c",
@@ -31,53 +40,73 @@ const STATUS_TONE = {
   optimized: "#60a5fa",
   integrated: "#34d399",
   rejected: "#f87171",
-};
+});
 
-function escape(value) {
+// OWASP HTML Entity Encoding for HTML body text and quoted attributes.
+function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#x27;")
+    .replaceAll("/", "&#x2F;");
+}
+
+// Defensive path encoder for `src=`/`data=` attributes. Restricts the
+// character set to a safe URL-subpath alphabet; everything else becomes
+// %XX. This is a second line of defence on top of escapeHtml so a
+// malformed manifest entry cannot smuggle a `"` or `>` through the
+// attribute boundary.
+function escapePath(value) {
+  return String(value ?? "").replace(/[^A-Za-z0-9_\-./]/g, (ch) => {
+    return `%${ch.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`;
+  });
 }
 
 function thumbPath(asset) {
-  // For preview, we point at the on-disk source under assets/. The catalog is
-  // for humans inspecting the manifest; the runtime never reads it.
+  // For preview, we point at the on-disk source under assets/. The catalog
+  // is for humans inspecting the manifest; the runtime never reads it.
   const file = asset.files?.vector ?? asset.files?.image ?? asset.files?.source ?? asset.files?.reference;
   if (!file) return null;
   return file;
 }
 
+function statusToneCss(status) {
+  // Only allow a value from the frozen lookup table.
+  return STATUS_TONE[status] ?? "#9ca3af";
+}
+
 function cardHtml(asset) {
-  const tone = STATUS_TONE[asset.status] ?? "#9ca3af";
   const file = thumbPath(asset);
-  const tags = (asset.usage ?? []).map((t) => `<span class="tag">${escape(t)}</span>`).join(" ");
+  const tags = (asset.usage ?? [])
+    .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
+    .join(" ");
   const preview = file
     ? extname(file).toLowerCase() === ".svg"
-      ? `<object class="thumb" type="image/svg+xml" data="../${escape(file)}" aria-label="${escape(asset.id)}"></object>`
-      : `<img class="thumb" src="../${escape(file)}" alt="${escape(asset.id)}" loading="lazy" />`
+      ? `<object class="thumb" type="image/svg+xml" data="${escapePath("../" + file)}" aria-label="${escapeHtml(asset.id)}"></object>`
+      : `<img class="thumb" src="${escapePath("../" + file)}" alt="${escapeHtml(asset.id)}" loading="lazy" />`
     : `<div class="thumb placeholder">no file</div>`;
   const checks = Object.entries(asset.checks ?? {})
-    .map(([k, v]) => `<span class="check ${v ? "on" : "off"}">${v ? "✓" : "·"} ${escape(k)}</span>`)
+    .map(([k, v]) => `<span class="check ${v ? "on" : "off"}">${v ? "✓" : "·"} ${escapeHtml(k)}</span>`)
     .join(" ");
   return `
-    <article class="card" data-status="${escape(asset.status)}" data-category="${escape(asset.category)}">
+    <article class="card" data-status="${escapeHtml(asset.status)}" data-category="${escapeHtml(asset.category)}">
       ${preview}
       <header>
-        <h2>${escape(asset.id)}</h2>
-        <span class="badge" style="background:${tone}">${escape(STATUS_LABEL[asset.status] ?? asset.status)}</span>
+        <h2>${escapeHtml(asset.id)}</h2>
+        <span class="badge" style="background:${statusToneCss(asset.status)}">${escapeHtml(STATUS_LABEL[asset.status] ?? asset.status)}</span>
       </header>
       <p class="meta">
-        <span>${escape(asset.category)}</span>
-        <span>${escape(asset.rendering)}</span>
+        <span>${escapeHtml(asset.category)}</span>
+        <span>${escapeHtml(asset.rendering)}</span>
       </p>
       <p class="usage">${tags}</p>
-      <p class="path">${escape(file ?? "—")}</p>
-      <p class="hash">sha256: <code>${escape(asset.sha256 ?? "—")}</code></p>
-      <p class="bytes">bytes: <code>${escape(asset.bytes ?? "—")}</code></p>
+      <p class="path">${escapeHtml(file ?? "—")}</p>
+      <p class="hash">sha256: <code>${escapeHtml(asset.sha256 ?? "—")}</code></p>
+      <p class="bytes">bytes: <code>${escapeHtml(asset.bytes ?? "—")}</code></p>
       <p class="checks">${checks}</p>
-      ${asset.notes ? `<p class="notes">${escape(asset.notes)}</p>` : ""}
+      ${asset.notes ? `<p class="notes">${escapeHtml(asset.notes)}</p>` : ""}
     </article>`;
 }
 
@@ -88,13 +117,13 @@ async function main() {
     if (!byCategory.has(a.category)) byCategory.set(a.category, []);
     byCategory.get(a.category).push(a);
   }
-  const sections = [...byCategory.entries()]
-    .map(([cat, list]) => {
-      const cards = list.map(cardHtml).join("\n");
-      return `<section><h1>${escape(cat)} <small>${list.length}</small></h1>${cards}</section>`;
-    })
-    .join("\n");
+  const sectionCards = [...byCategory.entries()].map(([cat, list]) => {
+    const cards = list.map(cardHtml).join("\n");
+    return `<section><h1>${escapeHtml(cat)} <small>${list.length}</small></h1>${cards}</section>`;
+  });
 
+  const totalAssets = manifest.assets?.length ?? 0;
+  const generatedAt = escapeHtml(manifest.generatedAt ?? "");
   const html = `<!doctype html>
 <html lang="en">
   <head>
@@ -123,15 +152,15 @@ async function main() {
     </style>
   </head>
   <body>
-    <header><h1>SIGNAL Asset Catalog</h1><p>${manifest.assets?.length ?? 0} assets · generated ${escape(manifest.generatedAt ?? "")}</p></header>
-    ${sections.split("<section>").filter(Boolean).map((s) => `<section><div class="grid">${s.replace(/^<h1>.*?<\/h1>/, "")}</div></section>`).join("")}
+    <header><h1>SIGNAL Asset Catalog</h1><p>${totalAssets} assets &middot; generated ${generatedAt}</p></header>
+    ${sectionCards.join("\n")}
   </body>
 </html>
 `;
 
   await mkdir(dirname(outPath), { recursive: true });
   await writeFile(outPath, html);
-  console.log(`assets:preview wrote ${relative(repoRoot, outPath)} (${manifest.assets?.length ?? 0} cards).`);
+  console.log(`assets:preview wrote ${relative(repoRoot, outPath)} (${totalAssets} cards).`);
 }
 
 main().catch((err) => {

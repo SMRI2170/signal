@@ -51,7 +51,8 @@
     "entry": [
       "src/**/*.{ts,tsx,css}",
       "public/sw.js",
-      "scripts/assets-schema.test.mjs"
+      "scripts/assets-schema.test.mjs",
+      "scripts/assets-build.test.mjs"
     ],
     "project": [
       "src/**/*.{ts,tsx,css}",

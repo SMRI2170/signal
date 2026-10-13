@@ -21,6 +21,9 @@
       "files": {
         "image": "assets/stickers/sticker_chrome_heart.webp"
       },
+      "delivery": {
+        "public": "public/stickers/chrome-heart.webp"
+      },
       "usage": ["landing", "fact_input", "real_sticker_grid"],
       "bytes": 17906,
       "sha256": "80f74e52052df22e6fff437c2917293c4c09d6e5de05ef715d7eb790a1b0b588",
@@ -43,6 +46,9 @@
       "files": {
         "image": "assets/stickers/sticker_scanner_orb.webp"
       },
+      "delivery": {
+        "public": "public/stickers/scanner-orb.webp"
+      },
       "usage": ["scanner", "result", "real_sticker_grid"],
       "bytes": 23868,
       "sha256": "225452730b2c22710b769f53de93ece717b6c03cec5370a181b1c374094a86ce",
@@ -64,6 +70,9 @@
       "source": "renamed from public/icons/signal-mark.svg (2026-10-04)",
       "files": {
         "vector": "assets/branding/brand_signal_mark.svg"
+      },
+      "delivery": {
+        "public": "public/icons/signal-mark.svg"
       },
       "usage": ["manifest_icon", "layout_icon", "favicon"],
       "bytes": 945,
