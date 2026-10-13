@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/SMRI2170/signal/blob/main/assets/manifest.schema.json",
+  "title": "SIGNAL Asset Manifest",
+  "description": "Single Source of Truth for SIGNAL design assets. Defines IDs, file paths, status, and pipeline checks.",
+  "type": "object",
+  "required": ["schemaVersion", "categories", "assets"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "description": {
+      "type": "string"
+    },
+    "categories": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "label"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+          "label": { "type": "string", "minLength": 1 },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/asset" }
+    }
+  },
+  "$defs": {
+    "asset": {
+      "type": "object",
+      "required": ["id", "category", "status", "rendering", "files", "usage", "checks"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "snake_case, 1 asset = 1 id. No duplicates across the manifest."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["references", "stickers", "controls", "panels", "scanner", "branding", "textures"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["planned", "generated", "needs_qa", "adopted", "optimized", "integrated", "rejected"]
+        },
+        "rendering": {
+          "type": "string",
+          "enum": ["decorative_image", "logo_vector", "background_texture", "reference"]
+        },
+        "source": {
+          "type": "string",
+          "description": "Provenance: original generator, source file, or PR that introduced the asset."
+        },
+        "files": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "type": "string" },
+          "propertyNames": {
+            "pattern": "^(image|vector|source|reference)$"
+          }
+        },
+        "usage": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "width": { "type": "integer", "minimum": 0 },
+        "height": { "type": "integer", "minimum": 0 },
+        "bytes": { "type": "integer", "minimum": 0 },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "checks": {
+          "type": "object",
+          "required": ["generated", "isolated", "qaPassed", "optimized", "adopted", "integrated"],
+          "additionalProperties": false,
+          "properties": {
+            "generated": { "type": "boolean" },
+            "isolated": { "type": "boolean" },
+            "qaPassed": { "type": "boolean" },
+            "optimized": { "type": "boolean" },
+            "adopted": { "type": "boolean" },
+            "integrated": { "type": "boolean" }
+          }
+        },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}

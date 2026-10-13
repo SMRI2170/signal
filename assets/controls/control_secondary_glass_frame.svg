@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="528" height="148" viewBox="0 0 528 148"><defs>
+<linearGradient id="chrome" x1="0%" y1="0%" x2="70%" y2="100%"><stop offset="0%" stop-color="#4B2C50"/><stop offset="10%" stop-color="#FFF9FF"/><stop offset="23%" stop-color="#D58EED"/><stop offset="39%" stop-color="#FFFFFF"/><stop offset="55%" stop-color="#74516A"/><stop offset="72%" stop-color="#E9E1FF"/><stop offset="88%" stop-color="#FF8AC9"/><stop offset="100%" stop-color="#48284F"/></linearGradient>
+<linearGradient id="pink" x1="0%" y1="0%" x2="10%" y2="100%"><stop offset="0%" stop-color="#FFBDEC"/><stop offset="24%" stop-color="#FF7BCB"/><stop offset="60%" stop-color="#F64FBA"/><stop offset="100%" stop-color="#B82C93"/></linearGradient>
+<linearGradient id="glass" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#FFFFFF" stop-opacity=".97"/><stop offset="54%" stop-color="#F9DBFF" stop-opacity=".84"/><stop offset="100%" stop-color="#D8B5EF" stop-opacity=".95"/></linearGradient>
+<linearGradient id="rainbow" x1="0%" y1="0%" x2="100%" y2="40%"><stop offset="0%" stop-color="#FF8FD5"/><stop offset="23%" stop-color="#BE9EFF"/><stop offset="43%" stop-color="#9FEAFF"/><stop offset="68%" stop-color="#F59EF2"/><stop offset="100%" stop-color="#FF5CAA"/></linearGradient>
+</defs>
+<rect x="9" y="15" width="510" height="124" rx="62" fill="#231B32" opacity=".12"/>
+<rect x="6" y="5" width="516" height="132" rx="66" stroke="#3D214E" stroke-width="4" fill="url(#chrome)"/>
+<rect x="15" y="13" width="498" height="111" rx="55" stroke="#FFFAFF" stroke-width="2.7" fill="url(#glass)"/>
+<rect x="21" y="19" width="486" height="99" rx="49" stroke="#F4C8F7" stroke-width="1.8" fill="none"/>
+<path d="M60 28 Q258 9 459 29 Q478 32 485 49 Q265 30 38 52 Q41 39 60 28Z" fill="#FFF" opacity=".62"/>
+<path d="M42 107 Q260 130 484 100" stroke="#BA86D5" stroke-width="5" opacity=".27" fill="none"/>
+<path d="M57 29 Q59 36 66 38 Q59 40 57 47 Q55 40 48 38 Q55 36 57 29Z" fill="#FFF" opacity=".98"/><path d="M462 99 Q464 103 468 105 Q464 107 462 111 Q460 107 456 105 Q460 103 462 99Z" fill="#FFF" opacity=".98"/>
+</svg>
