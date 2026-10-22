@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 
 plugins {
   kotlin("multiplatform")
@@ -24,10 +25,12 @@ kotlin {
     }
   }
 
+  val signalSharedXCFramework = XCFramework("SignalShared")
   listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
     target.binaries.framework {
       baseName = "SignalShared"
       isStatic = true
+      signalSharedXCFramework.add(this)
     }
   }
 

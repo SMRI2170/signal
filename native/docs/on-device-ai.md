@@ -42,14 +42,15 @@ The model card reports Qwen3-0.6B INT4 on a Samsung Galaxy S26, Android 16, usin
    ./scripts/provision-ondevice-model.sh ios-simulator
    ```
 
-3. For iOS, build the shared framework and app, then install and launch normally. For example, from `native`:
+3. For iOS Simulator or a physical iPhone, build the shared XCFramework first. It contains both device (`ios-arm64`) and Apple Silicon Simulator slices. Then regenerate the Xcode project and open it:
 
    ```sh
-   ./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64
-   xcodebuild -project iosApp/SIGNAL.xcodeproj -scheme SIGNAL \
-     -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
-   xcrun simctl launch --terminate-running-process booted com.signal.app
+   ./gradlew :composeApp:assembleSignalSharedDebugXCFramework
+   cd iosApp && xcodegen generate
+   open SIGNAL.xcodeproj
    ```
+
+   In Xcode, select the connected iPhone and `SIGNAL` scheme, set an Apple Development Team under Signing & Capabilities, then Run. An Apple Developer account and a provisioning profile for `com.signal.app` are required for physical installation. Simulator builds do not need device provisioning.
 
 4. Enter three synthetic Japanese Facts. To verify the no-network claim, download the model first, enable airplane mode, select the on-device option and rerun. The app's other cloud-backed functions remain network dependent.
 
