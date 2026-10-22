@@ -721,11 +721,16 @@ private fun OnDeviceModelCard(
         lineHeight = 15.sp,
       )
       Text(
-        "Qwenライセンス: Apache-2.0",
+        "モデル情報・ライセンス（Hugging Face）↗",
         color = SignalColors.Ink,
         fontWeight = FontWeight.Black,
         fontSize = 10.sp,
-        modifier = Modifier.clickable { uriHandler.openUri("https://huggingface.co/litert-community/Qwen3-0.6B-int4") },
+        modifier = Modifier.clickable(
+          role = Role.Button,
+          onClickLabel = "Hugging Faceでモデル情報とライセンスを開く",
+        ) {
+          runCatching { uriHandler.openUri("https://huggingface.co/litert-community/Qwen3-0.6B-int4") }
+        },
       )
       Spacer(Modifier.height(5.dp))
       when (status?.stage) {
