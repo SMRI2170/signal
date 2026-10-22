@@ -65,6 +65,19 @@ The provision command downloads a 347 MB model and requires network access on th
 - Compare the same synthetic fixture with Jev. Human-reviewed labels and per-field agreement matter; numeric similarity alone is not correctness.
 - No Pixel 8 or iPhone device was attached for this implementation run. Do not present the published S26 numbers as SIGNAL measurements or claim performance acceptance.
 
+### Run record template
+
+| Field | Result |
+|---|---|
+| Device / OS / app commit | Pending device run |
+| Model file bytes / SHA-256 | 347,251,840 / `2df6821ec12702dafd33915e7a1a1adc7c4b053f3672fd9555dfaf3a114c4139` |
+| Runtime / backend | LiteRT-LM 0.18.1 / CPU prototype |
+| Model initialization, cold | Not measured |
+| Button-to-result, cold | Not measured |
+| Button-to-result, warm p50 / p95 (30+ runs) | Not measured |
+| Peak RSS or PSS / failures | Not measured |
+| Human review / Jev agreement | Not measured |
+
 ## Primary sources
 
 - [Qwen3-0.6B INT4 model card, artifact hash/size, usage, license, and measurements](https://huggingface.co/litert-community/Qwen3-0.6B-int4)
