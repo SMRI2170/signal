@@ -1,6 +1,7 @@
 package com.signal.app
 
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.flow.first
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -46,6 +47,29 @@ class OnDeviceJudgeGatewayTest {
     }
 
     assertEquals("ON_DEVICE_INFERENCE_FAILED", error.code)
+  }
+
+  @Test
+  fun modelManagerExposesMissingDownloadReadyAndFailureStates() = runTest {
+    val manager = BridgedOnDeviceModelManager(object : OnDeviceModelManagerBridge {
+      override fun inspect(completion: (String?) -> Unit) = completion("MISSING")
+      override fun download(progress: (String?) -> Unit, completion: (String?) -> Unit) {
+        progress("64")
+        completion(null)
+      }
+    })
+
+    manager.refresh()
+    assertEquals(OnDeviceModelStage.MISSING, manager.status.first().stage)
+    manager.download()
+    assertEquals(OnDeviceModelStage.READY, manager.status.first().stage)
+
+    val failedManager = BridgedOnDeviceModelManager(object : OnDeviceModelManagerBridge {
+      override fun inspect(completion: (String?) -> Unit) = completion("MISSING")
+      override fun download(progress: (String?) -> Unit, completion: (String?) -> Unit) = completion("MODEL_DOWNLOAD_FAILED")
+    })
+    failedManager.download()
+    assertEquals(OnDeviceModelStage.FAILED, failedManager.status.first().stage)
   }
 
   private companion object {

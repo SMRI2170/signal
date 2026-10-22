@@ -31,12 +31,6 @@ val signalBenchmarkMode = providers.gradleProperty("SIGNAL_BENCHMARK_MODE")
   .get()
   .toBooleanStrictOrNull()
   ?: throw GradleException("SIGNAL_BENCHMARK_MODE must be true or false")
-val signalOnDeviceAi = providers.gradleProperty("SIGNAL_ON_DEVICE_AI")
-  .orElse(providers.environmentVariable("SIGNAL_ON_DEVICE_AI"))
-  .orElse("false")
-  .get()
-  .toBooleanStrictOrNull()
-  ?: throw GradleException("SIGNAL_ON_DEVICE_AI must be true or false")
 val releaseSigningValues = listOf(
   providers.gradleProperty("SIGNAL_ANDROID_KEYSTORE_PATH")
     .orElse(providers.environmentVariable("SIGNAL_ANDROID_KEYSTORE_PATH")).orNull,
@@ -79,7 +73,6 @@ android {
     buildConfigField("String", "SIGNAL_SUPABASE_URL", "\"$signalSupabaseUrl\"")
     buildConfigField("String", "SIGNAL_SUPABASE_PUBLISHABLE_KEY", "\"$signalSupabasePublishableKey\"")
     buildConfigField("boolean", "SIGNAL_BENCHMARK_MODE", signalBenchmarkMode.toString())
-    buildConfigField("boolean", "SIGNAL_ON_DEVICE_AI", signalOnDeviceAi.toString())
   }
 
   buildFeatures {

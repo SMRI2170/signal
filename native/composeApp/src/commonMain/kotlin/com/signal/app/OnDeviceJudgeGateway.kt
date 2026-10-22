@@ -33,6 +33,13 @@ private class BridgedOnDeviceTextInference(
             retryable = false,
           ),
         )
+        error == "ON_DEVICE_INSUFFICIENT_MEMORY" -> continuation.resumeWithException(
+          JudgeGatewayException(
+            code = error,
+            userMessageJa = "端末の空きメモリが足りないため、端末内AIを起動できません。ほかのアプリを閉じて再試行してください。Factは端末内に保持されています。",
+            retryable = true,
+          ),
+        )
         error != null -> continuation.resumeWithException(
           JudgeGatewayException(
             code = "ON_DEVICE_INFERENCE_FAILED",

@@ -4,7 +4,8 @@ import SignalShared
 @main
 struct SignalNativeApp: App {
   private let accountRepository: SignalAccountRepository
-  private let onDeviceInferenceBridge: OnDeviceInferenceBridge?
+  private let onDeviceInferenceBridge = IosLiteRtTextInference()
+  private let onDeviceModelManagerBridge = IosOnDeviceModelManager()
 
   init() {
     let supabaseURL = Bundle.main.object(forInfoDictionaryKey: "SIGNALSupabaseURL") as? String ?? ""
@@ -15,18 +16,14 @@ struct SignalNativeApp: App {
       publishableKey: publishableKey,
       apiBaseUrl: apiBaseURL
     )
-    if ProcessInfo.processInfo.environment["SIGNAL_ON_DEVICE_AI"] == "1" {
-      onDeviceInferenceBridge = IosLiteRtTextInference()
-    } else {
-      onDeviceInferenceBridge = nil
-    }
   }
 
   var body: some Scene {
     WindowGroup {
       SignalComposeView(
         accountRepository: accountRepository,
-        onDeviceInferenceBridge: onDeviceInferenceBridge
+        onDeviceInferenceBridge: onDeviceInferenceBridge,
+        onDeviceModelManagerBridge: onDeviceModelManagerBridge
       )
         .ignoresSafeArea()
         .onOpenURL { url in
@@ -38,14 +35,16 @@ struct SignalNativeApp: App {
 
 private struct SignalComposeView: UIViewControllerRepresentable {
   let accountRepository: SignalAccountRepository
-  let onDeviceInferenceBridge: OnDeviceInferenceBridge?
+  let onDeviceInferenceBridge: OnDeviceInferenceBridge
+  let onDeviceModelManagerBridge: OnDeviceModelManagerBridge
 
   func makeUIViewController(context: Context) -> UIViewController {
     let apiBaseURL = Bundle.main.object(forInfoDictionaryKey: "SIGNALApiBaseURL") as? String
     return MainViewControllerKt.MainViewController(
       apiBaseUrl: apiBaseURL,
       accountRepository: accountRepository,
-      onDeviceInferenceBridge: onDeviceInferenceBridge
+      onDeviceInferenceBridge: onDeviceInferenceBridge,
+      onDeviceModelManagerBridge: onDeviceModelManagerBridge
     )
   }
 

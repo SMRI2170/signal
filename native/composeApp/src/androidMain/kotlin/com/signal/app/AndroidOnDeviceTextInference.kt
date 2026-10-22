@@ -1,6 +1,7 @@
 package com.signal.app
 
 import android.content.Context
+import android.app.ActivityManager
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Content
@@ -13,6 +14,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.security.MessageDigest
 
 /** Android LiteRT-LM adapter. Model bytes are provisioned separately and never put in Git. */
 class AndroidOnDeviceTextInference(context: Context) : OnDeviceTextInference {
@@ -25,7 +27,7 @@ class AndroidOnDeviceTextInference(context: Context) : OnDeviceTextInference {
 
   suspend fun prepare() = mutex.withLock {
     withContext(Dispatchers.Default) {
-      if (!modelFile.isFile || modelFile.length() != MODEL_BYTES) return@withContext
+      if (!isModelValid()) return@withContext
       try {
         engine ?: createEngine().also { engine = it }
       } catch (error: Throwable) {
@@ -44,6 +46,20 @@ class AndroidOnDeviceTextInference(context: Context) : OnDeviceTextInference {
         )
       }
       initializationFailure?.let { throw it }
+      if (engine == null && !hasMemoryHeadroom()) {
+        throw JudgeGatewayException(
+          code = "ON_DEVICE_INSUFFICIENT_MEMORY",
+          userMessageJa = "端末の空きメモリが足りないため、端末内AIを起動できません。ほかのアプリを閉じて再試行してください。Factは端末内に保持されています。",
+          retryable = true,
+        )
+      }
+      if (engine == null && !isModelValid()) {
+        throw JudgeGatewayException(
+          code = "ON_DEVICE_MODEL_CORRUPT",
+          userMessageJa = "端末内AIモデルを検証できません。モデルを再取得してください。Factは端末内に保持されています。",
+          retryable = true,
+        )
+      }
       val loadedEngine = engine ?: createEngine().also { engine = it }
       val conversation = loadedEngine.createConversation(
         ConversationConfig(
@@ -74,9 +90,31 @@ class AndroidOnDeviceTextInference(context: Context) : OnDeviceTextInference {
     ).also { it.initialize() }
   }
 
+  private fun isModelValid(): Boolean {
+    if (!modelFile.isFile || modelFile.length() != MODEL_BYTES) return false
+    val digest = MessageDigest.getInstance("SHA-256")
+    modelFile.inputStream().buffered().use { input ->
+      val buffer = ByteArray(1024 * 1024)
+      while (true) {
+        val count = input.read(buffer)
+        if (count < 0) break
+        digest.update(buffer, 0, count)
+      }
+    }
+    return digest.digest().joinToString("") { "%02x".format(it) } == MODEL_SHA256
+  }
+
+  private fun hasMemoryHeadroom(): Boolean {
+    val memoryInfo = ActivityManager.MemoryInfo()
+    (appContext.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(memoryInfo)
+    return memoryInfo.availMem >= MIN_AVAILABLE_MEMORY_BYTES
+  }
+
   companion object {
     const val MODEL_RELATIVE_PATH = "ondevice/qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm"
     const val MODEL_BYTES = 347_251_840L
+    const val MODEL_SHA256 = "2df6821ec12702dafd33915e7a1a1adc7c4b053f3672fd9555dfaf3a114c4139"
+    const val MIN_AVAILABLE_MEMORY_BYTES = 1_342_177_280L
     const val MAX_CONTEXT_TOKENS = 1_280
     const val MAX_OUTPUT_TOKENS = 384
   }

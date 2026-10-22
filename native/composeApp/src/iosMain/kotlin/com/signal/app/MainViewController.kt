@@ -17,9 +17,12 @@ fun MainViewController(
   apiBaseUrl: String?,
   accountRepository: SignalAccountRepository,
   onDeviceInferenceBridge: OnDeviceInferenceBridge? = null,
+  onDeviceModelManagerBridge: OnDeviceModelManagerBridge? = null,
 ) = ComposeUIViewController {
   SignalApp(
-    gateway = onDeviceInferenceBridge?.let(::createOnDeviceJudgeGateway) ?: createJudgeGateway(apiBaseUrl),
+    gateway = createJudgeGateway(apiBaseUrl),
+    onDeviceGateway = onDeviceInferenceBridge?.let(::createOnDeviceJudgeGateway),
+    onDeviceModelManager = onDeviceModelManagerBridge?.let(::BridgedOnDeviceModelManager),
     accountRepository = accountRepository,
   )
 }

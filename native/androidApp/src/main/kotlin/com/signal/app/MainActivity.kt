@@ -7,21 +7,18 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.remember
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
   private var accountRepository: SignalAccountRepository? = null
   private var onDeviceTextInference: AndroidOnDeviceTextInference? = null
+  private var onDeviceModelManager: AndroidOnDeviceModelManager? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
-    if (BuildConfig.SIGNAL_ON_DEVICE_AI && !BuildConfig.SIGNAL_BENCHMARK_MODE) {
-      onDeviceTextInference = AndroidOnDeviceTextInference(applicationContext).also { inference ->
-        lifecycleScope.launch(Dispatchers.Default) { inference.prepare() }
-      }
+    if (!BuildConfig.SIGNAL_BENCHMARK_MODE) {
+      onDeviceTextInference = AndroidOnDeviceTextInference(applicationContext)
+      onDeviceModelManager = AndroidOnDeviceModelManager.getInstance(applicationContext)
     }
     if (!BuildConfig.SIGNAL_BENCHMARK_MODE) {
       accountRepository = createSignalAccountRepository(
@@ -36,14 +33,13 @@ class MainActivity : ComponentActivity() {
       val gateway = remember {
         when {
           BuildConfig.SIGNAL_BENCHMARK_MODE -> LocalJudgeGateway
-          BuildConfig.SIGNAL_ON_DEVICE_AI -> OnDeviceJudgeGateway(
-            onDeviceTextInference ?: AndroidOnDeviceTextInference(applicationContext),
-          )
           else -> createJudgeGateway(BuildConfig.SIGNAL_API_BASE_URL)
         }
       }
       SignalApp(
         gateway = gateway,
+        onDeviceGateway = onDeviceTextInference?.let(::OnDeviceJudgeGateway),
+        onDeviceModelManager = onDeviceModelManager,
         accountRepository = accountRepository,
         onRevealCompositionsMeasured = if (BuildConfig.SIGNAL_BENCHMARK_MODE) {
           { count -> Log.d("SIGNAL_PERF", "factToReceiptRecompositions=$count") }

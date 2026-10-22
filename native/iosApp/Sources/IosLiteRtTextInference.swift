@@ -1,16 +1,20 @@
 import Foundation
 import LiteRTLM
+import os
 import SignalShared
 
 private actor LiteRtModelSession {
   private var engine: Engine?
 
   func generate(_ prompt: String) async throws -> String {
-    let modelURL = try Self.modelURL()
     let loadedEngine: Engine
     if let engine {
       loadedEngine = engine
     } else {
+      let modelURL = try Self.modelURL()
+      guard os_proc_available_memory() >= 1_342_177_280 else {
+        throw OnDeviceMemoryInsufficient()
+      }
       let cacheURL = modelURL.deletingLastPathComponent().appendingPathComponent("cache", isDirectory: true)
       try FileManager.default.createDirectory(at: cacheURL, withIntermediateDirectories: true)
       let config = try EngineConfig(
@@ -48,7 +52,8 @@ private actor LiteRtModelSession {
     var isDirectory: ObjCBool = false
     guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), !isDirectory.boolValue,
           let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-          (attributes[.size] as? NSNumber)?.int64Value == 347_251_840
+          (attributes[.size] as? NSNumber)?.int64Value == 347_251_840,
+          OnDeviceModelFiles.isValid(url)
     else {
       throw OnDeviceModelUnavailable()
     }
@@ -60,18 +65,29 @@ private struct OnDeviceModelUnavailable: LocalizedError {
   var errorDescription: String? { "ON_DEVICE_MODEL_NOT_READY" }
 }
 
+private struct OnDeviceMemoryInsufficient: LocalizedError {
+  var errorDescription: String? { "ON_DEVICE_INSUFFICIENT_MEMORY" }
+}
+
+private struct SendableInferenceCompletion: @unchecked Sendable {
+  let callback: (String?, String?) -> Void
+}
+
 final class IosLiteRtTextInference: NSObject, OnDeviceInferenceBridge {
   private let session = LiteRtModelSession()
 
   func generate(prompt: String, completion: @escaping (String?, String?) -> Void) {
-    Task.detached(priority: .userInitiated) { [session] in
+    let callback = SendableInferenceCompletion(callback: completion)
+    Task.detached(priority: .userInitiated) { [session, callback] in
       do {
-        completion(try await session.generate(prompt), nil)
+        callback.callback(try await session.generate(prompt), nil)
       } catch let error as OnDeviceModelUnavailable {
-        completion(nil, error.localizedDescription)
+        callback.callback(nil, error.localizedDescription)
+      } catch let error as OnDeviceMemoryInsufficient {
+        callback.callback(nil, error.localizedDescription)
       } catch {
         // Do not log the prompt, the error payload, or any generated content.
-        completion(nil, "ON_DEVICE_INFERENCE_FAILED")
+        callback.callback(nil, "ON_DEVICE_INFERENCE_FAILED")
       }
     }
   }

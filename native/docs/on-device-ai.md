@@ -2,9 +2,9 @@
 
 ## Current implementation boundary
 
-The Android path is opt-in with `-PSIGNAL_ON_DEVICE_AI=true`; iOS is opt-in with the `SIGNAL_ON_DEVICE_AI=1` launch environment variable. Both call the same `OnDeviceJudgeGateway`, run the model locally, and do not fall back to `ServerJudgeGateway`. `LocalJudgeGateway` remains a deterministic test/demo implementation and is not treated as an AI model.
+The analysis form now lets the user explicitly select on-device AI. The default remains the existing gateway. Once selected, the app downloads and verifies the pinned model over HTTPS into app-private storage; inference runs locally and never falls back to `ServerJudgeGateway`. Model download is a separate user action; Fact text is not part of the download request. `LocalJudgeGateway` remains a deterministic test/demo implementation and is not treated as an AI model.
 
-This is an experimental prototype, not a release default. The model must first be provisioned into app-private storage using `scripts/provision-ondevice-model.sh`. There is no in-app model download UI yet. On-device inference itself is network independent after provisioning.
+This remains an experimental model and the default mode is unchanged. The first download is 347 MB; the UI discloses the size and recommends Wi-Fi and at least 500 MB free space. SHA-256 is verified before atomic installation. On-device inference itself is network independent after download. The command-line provisioner remains available for repeatable device QA.
 
 ## Candidate decision for the prototype
 
@@ -27,14 +27,14 @@ The model card reports Qwen3-0.6B INT4 on a Samsung Galaxy S26, Android 16, usin
 
 ## Local verification
 
-1. Build/install a debug app with on-device selection enabled:
+1. Build/install the standard debug app:
 
    ```sh
    cd native
-   ./gradlew :androidApp:installDebug -PSIGNAL_ON_DEVICE_AI=true
+   ./gradlew :androidApp:installDebug
    ```
 
-2. Download, verify, and copy the pinned model into the installed Android app's private files directory, or into the booted iOS Simulator's app container:
+2. Open the Fact form, select "端末内AIで分析", and tap "モデルを取得 · 約347 MB". The app verifies the pinned SHA-256 before enabling inference. To provision the model outside the UI for QA, use:
 
    ```sh
    ./scripts/provision-ondevice-model.sh android
@@ -42,19 +42,18 @@ The model card reports Qwen3-0.6B INT4 on a Samsung Galaxy S26, Android 16, usin
    ./scripts/provision-ondevice-model.sh ios-simulator
    ```
 
-3. For iOS, build the shared framework and app, then launch with the opt-in environment variable. For example, from `native`:
+3. For iOS, build the shared framework and app, then install and launch normally. For example, from `native`:
 
    ```sh
    ./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64
    xcodebuild -project iosApp/SIGNAL.xcodeproj -scheme SIGNAL \
      -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
-   SIMCTL_CHILD_SIGNAL_ON_DEVICE_AI=1 xcrun simctl launch \
-     --terminate-running-process booted com.signal.app
+   xcrun simctl launch --terminate-running-process booted com.signal.app
    ```
 
-4. Enter three synthetic Japanese Facts. To verify the no-network claim, enable airplane mode after provisioning and rerun. The app's other cloud-backed functions remain network dependent.
+4. Enter three synthetic Japanese Facts. To verify the no-network claim, download the model first, enable airplane mode, select the on-device option and rerun. The app's other cloud-backed functions remain network dependent.
 
-The provision command downloads a 347 MB model and requires network access on the development host. The model is stored only in the app container after copying; it is not part of APK/IPA or Git. This is developer QA provisioning, not a finished end-user download flow.
+The in-app model download runs on the device and stores the file only in the app container; it is not bundled in APK/IPA or Git. The QA provision command instead downloads on the development host before copying the verified model to the app container.
 
 ## Measurement procedure and reporting
 
