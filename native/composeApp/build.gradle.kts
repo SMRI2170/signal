@@ -51,6 +51,7 @@ kotlin {
     }
     androidMain.dependencies {
       implementation("io.ktor:ktor-client-okhttp:$ktorVersion")
+      implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.1")
     }
     iosMain.dependencies {
       implementation("io.ktor:ktor-client-darwin:$ktorVersion")

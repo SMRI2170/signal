@@ -6,6 +6,10 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
+packages:
+  LiteRT-LM:
+    url: https://github.com/google-ai-edge/LiteRT-LM
+    exactVersion: 0.18.1
 targets:
   SIGNAL:
     type: application
@@ -23,3 +27,5 @@ targets:
         FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../composeApp/build/bin/iosSimulatorArm64/debugFramework"
     dependencies:
       - framework: ../composeApp/build/bin/iosSimulatorArm64/debugFramework/SignalShared.framework
+      - package: LiteRT-LM
+        product: LiteRTLM

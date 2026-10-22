@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		1CFE9916679D5C80FF2364E9 /* SignalShared.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C4F481420B1F72165FF963FC /* SignalShared.framework */; };
 		8358BB551682D1DF5A45BA6D /* SignalNativeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D6A2B1229CADBA55C98E1D8 /* SignalNativeApp.swift */; };
+		89097B72B038B7912BF59C87 /* LiteRTLM in Frameworks */ = {isa = PBXBuildFile; productRef = 2C2E62C9EAB515FD0C381E73 /* LiteRTLM */; };
 		99D66495F854BE173FBC671C /* SignalShared.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C4F481420B1F72165FF963FC /* SignalShared.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -39,6 +40,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1CFE9916679D5C80FF2364E9 /* SignalShared.framework in Frameworks */,
+				89097B72B038B7912BF59C87 /* LiteRTLM in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -96,6 +98,7 @@
 			);
 			name = SIGNAL;
 			packageProductDependencies = (
+				2C2E62C9EAB515FD0C381E73 /* LiteRTLM */,
 			);
 			productName = SIGNAL;
 			productReference = A9DBAF72589A177317E83096 /* SIGNAL.app */;
@@ -121,6 +124,9 @@
 			);
 			mainGroup = 43B8B1C881FAB390E6793097;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				C8B3EF81BDA1F3F8D1F5D6D6 /* XCRemoteSwiftPackageReference "LiteRT-LM" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C1BCED9808078481377B94AF /* Products */;
 			projectDirPath = "";
@@ -332,6 +338,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C8B3EF81BDA1F3F8D1F5D6D6 /* XCRemoteSwiftPackageReference "LiteRT-LM" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google-ai-edge/LiteRT-LM";
+			requirement = {
+				kind = exactVersion;
+				version = 0.18.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2C2E62C9EAB515FD0C381E73 /* LiteRTLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C8B3EF81BDA1F3F8D1F5D6D6 /* XCRemoteSwiftPackageReference "LiteRT-LM" */;
+			productName = LiteRTLM;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = DF05B165EFD39147F8B1C451 /* Project object */;
 }
