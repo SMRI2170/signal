@@ -7,6 +7,7 @@ import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
+import com.google.ai.edge.litertlm.ResponseFormat
 import com.google.ai.edge.litertlm.SamplerConfig
 import com.google.ai.edge.litertlm.ThinkingConfig
 import kotlinx.coroutines.Dispatchers
@@ -66,10 +67,14 @@ class AndroidOnDeviceTextInference(context: Context) : OnDeviceTextInference {
           samplerConfig = SamplerConfig(topK = 1, topP = 1.0, temperature = 0.0),
           maxOutputToken = MAX_OUTPUT_TOKENS,
           thinkingConfig = ThinkingConfig(enableThinking = false, thinkingTokenBudget = 0),
+          enableResponseFormat = true,
         ),
       )
       try {
-        conversation.sendMessage(prompt).contents.contents
+        conversation.sendMessage(
+          prompt,
+          responseFormat = ResponseFormat.json(OUTPUT_SCHEMA),
+        ).contents.contents
           .filterIsInstance<Content.Text>()
           .joinToString(separator = "") { it.text }
       } finally {
@@ -117,5 +122,41 @@ class AndroidOnDeviceTextInference(context: Context) : OnDeviceTextInference {
     const val MIN_AVAILABLE_MEMORY_BYTES = 1_342_177_280L
     const val MAX_CONTEXT_TOKENS = 1_280
     const val MAX_OUTPUT_TOKENS = 384
+    private val OUTPUT_SCHEMA = """
+      {
+        "type":"object",
+        "properties":{
+          "validations":{
+            "type":"array",
+            "minItems":3,
+            "maxItems":10,
+            "items":{
+              "type":"object",
+              "properties":{
+                "index":{"type":"integer","minimum":0,"maximum":9},
+                "status":{"type":"string","enum":["OBSERVABLE","INTERPRETATION","UNCLEAR"]},
+                "reasonJa":{"type":"string"},
+                "rewriteExampleJa":{"type":["string","null"]}
+              },
+              "required":["index","status","reasonJa"],
+              "additionalProperties":false
+            }
+          },
+          "scores":{
+            "type":"object",
+            "properties":{
+              "signalLevel":{"type":"integer","minimum":0,"maximum":100},
+              "desireToMeet":{"type":"integer","minimum":0,"maximum":100},
+              "initiative":{"type":"integer","minimum":0,"maximum":100},
+              "evidenceSufficiency":{"type":"integer","minimum":0,"maximum":100}
+            },
+            "required":["signalLevel","desireToMeet","initiative","evidenceSufficiency"],
+            "additionalProperties":false
+          }
+        },
+        "required":["validations","scores"],
+        "additionalProperties":false
+      }
+    """.trimIndent()
   }
 }
