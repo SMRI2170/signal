@@ -6,6 +6,10 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
+packages:
+  LiteRT-LM:
+    url: https://github.com/google-ai-edge/LiteRT-LM
+    exactVersion: 0.18.1
 targets:
   SIGNAL:
     type: application
@@ -20,6 +24,7 @@ targets:
         SIGNAL_API_BASE_URL: https://deufcadognkhymqxrejo.supabase.co/functions/v1/signal-api
         SIGNAL_SUPABASE_URL: https://deufcadognkhymqxrejo.supabase.co
         SIGNAL_SUPABASE_PUBLISHABLE_KEY: sb_publishable_RBON1FbtOwYjqWxoiywYkg_WAz5-AFh
-        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../composeApp/build/bin/iosSimulatorArm64/debugFramework"
     dependencies:
-      - framework: ../composeApp/build/bin/iosSimulatorArm64/debugFramework/SignalShared.framework
+      - framework: ../composeApp/build/XCFrameworks/debug/SignalShared.xcframework
+      - package: LiteRT-LM
+        product: LiteRTLM

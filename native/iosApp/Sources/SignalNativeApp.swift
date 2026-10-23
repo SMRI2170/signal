@@ -4,6 +4,8 @@ import SignalShared
 @main
 struct SignalNativeApp: App {
   private let accountRepository: SignalAccountRepository
+  private let onDeviceInferenceBridge = IosLiteRtTextInference()
+  private let onDeviceModelManagerBridge = IosOnDeviceModelManager()
 
   init() {
     let supabaseURL = Bundle.main.object(forInfoDictionaryKey: "SIGNALSupabaseURL") as? String ?? ""
@@ -18,7 +20,11 @@ struct SignalNativeApp: App {
 
   var body: some Scene {
     WindowGroup {
-      SignalComposeView(accountRepository: accountRepository)
+      SignalComposeView(
+        accountRepository: accountRepository,
+        onDeviceInferenceBridge: onDeviceInferenceBridge,
+        onDeviceModelManagerBridge: onDeviceModelManagerBridge
+      )
         .ignoresSafeArea()
         .onOpenURL { url in
           accountRepository.receiveDeepLink(url: url.absoluteString)
@@ -29,12 +35,16 @@ struct SignalNativeApp: App {
 
 private struct SignalComposeView: UIViewControllerRepresentable {
   let accountRepository: SignalAccountRepository
+  let onDeviceInferenceBridge: OnDeviceInferenceBridge
+  let onDeviceModelManagerBridge: OnDeviceModelManagerBridge
 
   func makeUIViewController(context: Context) -> UIViewController {
     let apiBaseURL = Bundle.main.object(forInfoDictionaryKey: "SIGNALApiBaseURL") as? String
     return MainViewControllerKt.MainViewController(
       apiBaseUrl: apiBaseURL,
-      accountRepository: accountRepository
+      accountRepository: accountRepository,
+      onDeviceInferenceBridge: onDeviceInferenceBridge,
+      onDeviceModelManagerBridge: onDeviceModelManagerBridge
     )
   }
 

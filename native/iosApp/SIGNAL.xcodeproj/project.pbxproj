@@ -7,9 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1CFE9916679D5C80FF2364E9 /* SignalShared.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C4F481420B1F72165FF963FC /* SignalShared.framework */; };
+		2E3F546DDBC3059B036AD8A1 /* SignalShared.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 25BD4BBAAC88CB962B8C739C /* SignalShared.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		5F3EEFACB834149696469599 /* IosOnDeviceModelManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D625D7B9BD4804CED68F4F29 /* IosOnDeviceModelManager.swift */; };
+		7AA73FC1D7CA8C10C6D9B1FB /* IosLiteRtTextInference.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A0A111C7F77D9E21CE4A064 /* IosLiteRtTextInference.swift */; };
+		81B4E7D3C8A34401339E33CB /* SignalShared.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 25BD4BBAAC88CB962B8C739C /* SignalShared.xcframework */; };
 		8358BB551682D1DF5A45BA6D /* SignalNativeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D6A2B1229CADBA55C98E1D8 /* SignalNativeApp.swift */; };
-		99D66495F854BE173FBC671C /* SignalShared.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = C4F481420B1F72165FF963FC /* SignalShared.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		89097B72B038B7912BF59C87 /* LiteRTLM in Frameworks */ = {isa = PBXBuildFile; productRef = 2C2E62C9EAB515FD0C381E73 /* LiteRTLM */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -19,7 +22,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				99D66495F854BE173FBC671C /* SignalShared.framework in Embed Frameworks */,
+				2E3F546DDBC3059B036AD8A1 /* SignalShared.xcframework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -27,10 +30,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		25BD4BBAAC88CB962B8C739C /* SignalShared.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = SignalShared.xcframework; path = ../composeApp/build/XCFrameworks/debug/SignalShared.xcframework; sourceTree = "<group>"; };
 		2A9906EAB9FA564028C1ABD1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2D6A2B1229CADBA55C98E1D8 /* SignalNativeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalNativeApp.swift; sourceTree = "<group>"; };
+		8A0A111C7F77D9E21CE4A064 /* IosLiteRtTextInference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosLiteRtTextInference.swift; sourceTree = "<group>"; };
 		A9DBAF72589A177317E83096 /* SIGNAL.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SIGNAL.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		C4F481420B1F72165FF963FC /* SignalShared.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SignalShared.framework; path = ../composeApp/build/bin/iosSimulatorArm64/debugFramework/SignalShared.framework; sourceTree = "<group>"; };
+		D625D7B9BD4804CED68F4F29 /* IosOnDeviceModelManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosOnDeviceModelManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -38,7 +43,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1CFE9916679D5C80FF2364E9 /* SignalShared.framework in Frameworks */,
+				81B4E7D3C8A34401339E33CB /* SignalShared.xcframework in Frameworks */,
+				89097B72B038B7912BF59C87 /* LiteRTLM in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -57,7 +63,7 @@
 		6F7244690BBC97BAE938728B /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				C4F481420B1F72165FF963FC /* SignalShared.framework */,
+				25BD4BBAAC88CB962B8C739C /* SignalShared.xcframework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -66,6 +72,8 @@
 			isa = PBXGroup;
 			children = (
 				2A9906EAB9FA564028C1ABD1 /* Info.plist */,
+				8A0A111C7F77D9E21CE4A064 /* IosLiteRtTextInference.swift */,
+				D625D7B9BD4804CED68F4F29 /* IosOnDeviceModelManager.swift */,
 				2D6A2B1229CADBA55C98E1D8 /* SignalNativeApp.swift */,
 			);
 			path = Sources;
@@ -96,6 +104,7 @@
 			);
 			name = SIGNAL;
 			packageProductDependencies = (
+				2C2E62C9EAB515FD0C381E73 /* LiteRTLM */,
 			);
 			productName = SIGNAL;
 			productReference = A9DBAF72589A177317E83096 /* SIGNAL.app */;
@@ -121,6 +130,9 @@
 			);
 			mainGroup = 43B8B1C881FAB390E6793097;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				C8B3EF81BDA1F3F8D1F5D6D6 /* XCRemoteSwiftPackageReference "LiteRT-LM" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C1BCED9808078481377B94AF /* Products */;
 			projectDirPath = "";
@@ -136,6 +148,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7AA73FC1D7CA8C10C6D9B1FB /* IosLiteRtTextInference.swift in Sources */,
+				5F3EEFACB834149696469599 /* IosOnDeviceModelManager.swift in Sources */,
 				8358BB551682D1DF5A45BA6D /* SignalNativeApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -268,8 +282,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				FRAMEWORK_SEARCH_PATHS = (
-					"$(SRCROOT)/../composeApp/build/bin/iosSimulatorArm64/debugFramework",
-					"\"../composeApp/build/bin/iosSimulatorArm64/debugFramework\"",
+					"$(inherited)",
+					"\"../composeApp/build/XCFrameworks/debug\"",
 				);
 				INFOPLIST_FILE = Sources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -292,8 +306,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				FRAMEWORK_SEARCH_PATHS = (
-					"$(SRCROOT)/../composeApp/build/bin/iosSimulatorArm64/debugFramework",
-					"\"../composeApp/build/bin/iosSimulatorArm64/debugFramework\"",
+					"$(inherited)",
+					"\"../composeApp/build/XCFrameworks/debug\"",
 				);
 				INFOPLIST_FILE = Sources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -332,6 +346,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C8B3EF81BDA1F3F8D1F5D6D6 /* XCRemoteSwiftPackageReference "LiteRT-LM" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google-ai-edge/LiteRT-LM";
+			requirement = {
+				kind = exactVersion;
+				version = 0.18.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2C2E62C9EAB515FD0C381E73 /* LiteRTLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C8B3EF81BDA1F3F8D1F5D6D6 /* XCRemoteSwiftPackageReference "LiteRT-LM" */;
+			productName = LiteRTLM;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = DF05B165EFD39147F8B1C451 /* Project object */;
 }

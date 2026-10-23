@@ -16,9 +16,13 @@ fun createIosSignalAccountRepository(
 fun MainViewController(
   apiBaseUrl: String?,
   accountRepository: SignalAccountRepository,
+  onDeviceInferenceBridge: OnDeviceInferenceBridge? = null,
+  onDeviceModelManagerBridge: OnDeviceModelManagerBridge? = null,
 ) = ComposeUIViewController {
   SignalApp(
     gateway = createJudgeGateway(apiBaseUrl),
+    onDeviceGateway = onDeviceInferenceBridge?.let(::createOnDeviceJudgeGateway),
+    onDeviceModelManager = onDeviceModelManagerBridge?.let(::BridgedOnDeviceModelManager),
     accountRepository = accountRepository,
   )
 }
