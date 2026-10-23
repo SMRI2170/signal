@@ -65,7 +65,7 @@ The in-app model download runs on the device and stores the file only in the app
 - Measure from the analyze action through result composition/display. Also report model download time, model initialization, and inference separately.
 - Run one cold load and at least 30 consecutive warm analyses. Report p50, p95, failures, median and max output tokens, peak RSS/PSS, battery/thermal observations, model bytes, and installed APK size.
 - Compare the same synthetic fixture with Jev. Human-reviewed labels and per-field agreement matter; numeric similarity alone is not correctness.
-- An Android 15 arm64 emulator (`ramen_test`, 4 GiB guest RAM, CPU backend) completed 30 warm Gateway runs: JSON and expected labels succeeded 30/30; labels and scores were identical 30/30; model preparation was 1,398 ms; Gateway p50/p95 were 5,838/7,504 ms; max sampled PSS was 1,056,006 KiB. The test is not a UI button-to-result measurement, the emulator runs on a Mac host, and sampled PSS is not a true peak. One run took 14,290 ms.
+- An Android 15 arm64 emulator (`ramen_test`, 4 GiB guest RAM, CPU backend) completed two 30-run Gateway batches. The first batch reported 1,398 ms model preparation, 5,838/7,504 ms p50/p95, and max sampled PSS 1,056,006 KiB. A repeat on 2026-10-23 reported 1,390 ms preparation, 5,688/11,045 ms p50/p95, and max sampled PSS 1,091,801 KiB; the slowest run was 11,300 ms. Both batches had valid JSON and expected labels 30/30 with stable labels and scores 30/30. The repeat exceeded the 10-second p95 target. These are Gateway measurements, not UI button-to-result measurements; the emulator runs on a Mac host, and sampled PSS is not a true peak.
 - The earlier Pixel 8 / Android 17 run used the prior 1,280-token allocation: the cold Gateway run took 15,438 ms and misclassified an explicit negative action. The Pixel disconnected before the revised 768-token configuration could be tested. The emulator result therefore does not replace the Pixel 8 acceptance run.
 - Do not present published S26 numbers or emulator numbers as Pixel 8 results, or claim performance acceptance from emulator-only testing.
 
@@ -84,14 +84,14 @@ The test emits only run number, latency, label names, score stability, output ch
 
 | Field | Result |
 |---|---|
-| Device / OS / app commit | ramen_test AVD / Android 15 / `9d65bb9` plus uncommitted benchmark changes |
+| Device / OS / app commit | ramen_test AVD / Android 15 / `f9d7700` |
 | Model file bytes / SHA-256 | 347,251,840 / `2df6821ec12702dafd33915e7a1a1adc7c4b053f3672fd9555dfaf3a114c4139` |
 | Runtime / backend | LiteRT-LM 0.18.1 / CPU prototype |
-| Model initialization, cold | AVD: 1,398 ms (`prepare()`; separate from inference) |
+| Model initialization, cold | AVD repeat: 1,390 ms (`prepare()`; separate from inference) |
 | Button-to-result, cold | Not measured; Gateway only |
-| Button-to-result, warm p50 / p95 (30+ runs) | AVD Gateway: 5,838 / 7,504 ms; UI not included |
-| Expected labels / score stability | AVD: all 3 expected OBSERVABLE, 30/30; scores identical, 30/30 |
-| Peak RSS or PSS / failures | AVD sampled PSS max: 1,056,006 KiB; no test failures; not a true transient peak |
+| Button-to-result, warm p50 / p95 (30+ runs) | AVD Gateway repeat: 5,688 / 11,045 ms; UI not included; p95 target missed |
+| Expected labels / score stability | AVD repeat: all 3 expected OBSERVABLE, 30/30; scores identical, 30/30 |
+| Peak RSS or PSS / failures | AVD repeat sampled PSS max: 1,091,801 KiB; no test failures; not a true transient peak |
 | Human review / Jev agreement | Not measured |
 
 ## Primary sources
