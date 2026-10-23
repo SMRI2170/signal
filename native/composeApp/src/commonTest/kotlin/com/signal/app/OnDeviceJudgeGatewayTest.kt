@@ -27,13 +27,31 @@ class OnDeviceJudgeGatewayTest {
 
   @Test
   fun rejectsMalformedOrOutOfRangeModelResults() = runTest {
-    val invalidGateway = OnDeviceJudgeGateway(OnDeviceTextInference { "not json" })
+    val diagnostics = mutableListOf<OnDeviceJudgeDiagnostic>()
+    val invalidGateway = OnDeviceJudgeGateway(
+      inference = OnDeviceTextInference { "not json" },
+      diagnostics = OnDeviceJudgeDiagnostics { diagnostics += it },
+    )
 
     val error = assertFailsWith<JudgeGatewayException> {
       invalidGateway.validate(listOf("a", "b", "c"))
     }
 
-    assertEquals("ON_DEVICE_INVALID_RESPONSE", error.code)
+    assertEquals("ON_DEVICE_RESPONSE_DECODE_FAILED", error.code)
+    assertEquals(listOf("success", "invalid_json"), diagnostics.map { it.outcome })
+    assertEquals(8, diagnostics.first().responseChars)
+  }
+
+  @Test
+  fun classifiesSchemaFailureSeparatelyFromDecodeFailure() = runTest {
+    val invalidSchema = validOutput.replace("\"index\":2", "\"index\":9")
+    val gateway = OnDeviceJudgeGateway(OnDeviceTextInference { invalidSchema })
+
+    val error = assertFailsWith<JudgeGatewayException> {
+      gateway.validate(listOf("a", "b", "c"))
+    }
+
+    assertEquals("ON_DEVICE_RESPONSE_SCHEMA_INVALID", error.code)
   }
 
   @Test

@@ -120,8 +120,8 @@ class AndroidOnDeviceTextInference(context: Context) : OnDeviceTextInference {
     const val MODEL_BYTES = 347_251_840L
     const val MODEL_SHA256 = "2df6821ec12702dafd33915e7a1a1adc7c4b053f3672fd9555dfaf3a114c4139"
     const val MIN_AVAILABLE_MEMORY_BYTES = 1_342_177_280L
-    const val MAX_CONTEXT_TOKENS = 1_280
-    const val MAX_OUTPUT_TOKENS = 384
+    const val MAX_CONTEXT_TOKENS = 768
+    const val MAX_OUTPUT_TOKENS = 256
     private val OUTPUT_SCHEMA = """
       {
         "type":"object",

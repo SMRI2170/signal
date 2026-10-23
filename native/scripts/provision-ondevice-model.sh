@@ -27,7 +27,7 @@ fi
 if [[ "$TARGET" == "android" ]]; then
   adb shell pm path com.signal.app >/dev/null
   adb push "$MODEL_CACHE" "/data/local/tmp/${MODEL_NAME}"
-  adb shell run-as com.signal.app sh -c 'mkdir -p files/ondevice'
+  adb shell run-as com.signal.app mkdir -p files/ondevice
   adb shell run-as com.signal.app cp "/data/local/tmp/${MODEL_NAME}" "files/ondevice/${MODEL_NAME}"
   adb shell rm -f "/data/local/tmp/${MODEL_NAME}"
 else

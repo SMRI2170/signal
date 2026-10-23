@@ -19,6 +19,8 @@ Qwen is a general-purpose learned language model, not a SIGNAL-trained classifie
 
 The Qwen artifact is pinned to LiteRT Community revision `6aa2daf8aba4aa456797fb8040b36a3948bcfda7`; file SHA-256 is `2df6821ec12702dafd33915e7a1a1adc7c4b053f3672fd9555dfaf3a114c4139`. It is not stored in Git. Android runtime is pinned to Maven `com.google.ai.edge.litertlm:litertlm-android:0.18.1`; iOS uses the official LiteRT-LM Swift package `0.18.1`.
 
+Android inference currently sets the runtime context allocation to 768 tokens and the output cap to 256 tokens. The model artifact has a 1,280-token KV cache. LiteRT-LM/Qwen benchmark reports indicate that smaller runtime token allocations can improve CPU decode speed; this setting remains subject to physical-device validation and may need adjustment for longer Fact sets. The prototype evaluation uses three Facts.
+
 The Android AAR is 50,925,284 bytes uncompressed, including a 22,155,680-byte arm64 JNI library and a 26,353,160-byte x86_64 JNI library. These are dependency archive measurements, not the final APK delta. The iOS Swift package uses a prebuilt XCFramework; the downloaded archive is about 124 MB. Its final IPA delta and the Android APK delta were not measured. Neither platform bundles the 347 MB model in the app package.
 
 ### Published measurements (not SIGNAL measurements)
@@ -63,19 +65,33 @@ The in-app model download runs on the device and stores the file only in the app
 - Measure from the analyze action through result composition/display. Also report model download time, model initialization, and inference separately.
 - Run one cold load and at least 30 consecutive warm analyses. Report p50, p95, failures, median and max output tokens, peak RSS/PSS, battery/thermal observations, model bytes, and installed APK size.
 - Compare the same synthetic fixture with Jev. Human-reviewed labels and per-field agreement matter; numeric similarity alone is not correctness.
-- No Pixel 8 or iPhone device was attached for this implementation run. Do not present the published S26 numbers as SIGNAL measurements or claim performance acceptance.
+- An Android 15 arm64 emulator (`ramen_test`, 4 GiB guest RAM, CPU backend) completed 30 warm Gateway runs: JSON and expected labels succeeded 30/30; labels and scores were identical 30/30; model preparation was 1,398 ms; Gateway p50/p95 were 5,838/7,504 ms; max sampled PSS was 1,056,006 KiB. The test is not a UI button-to-result measurement, the emulator runs on a Mac host, and sampled PSS is not a true peak. One run took 14,290 ms.
+- The earlier Pixel 8 / Android 17 run used the prior 1,280-token allocation: the cold Gateway run took 15,438 ms and misclassified an explicit negative action. The Pixel disconnected before the revised 768-token configuration could be tested. The emulator result therefore does not replace the Pixel 8 acceptance run.
+- Do not present published S26 numbers or emulator numbers as Pixel 8 results, or claim performance acceptance from emulator-only testing.
+
+To provision the pinned artifact and run the device-only test, connect an installed debug app and use:
+
+```sh
+./scripts/provision-ondevice-model.sh android
+./gradlew :androidApp:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.signal.smoke.OnDeviceJudgeModelTest \
+  -Pandroid.testInstrumentationRunnerArguments.iterations=30
+```
+
+The test emits only run number, latency, label names, score stability, output character count, and sampled PSS. It never logs Fact text or model explanations. For a short smoke run, set `iterations=1`.
 
 ### Run record template
 
 | Field | Result |
 |---|---|
-| Device / OS / app commit | Pending device run |
+| Device / OS / app commit | ramen_test AVD / Android 15 / `9d65bb9` plus uncommitted benchmark changes |
 | Model file bytes / SHA-256 | 347,251,840 / `2df6821ec12702dafd33915e7a1a1adc7c4b053f3672fd9555dfaf3a114c4139` |
 | Runtime / backend | LiteRT-LM 0.18.1 / CPU prototype |
-| Model initialization, cold | Not measured |
-| Button-to-result, cold | Not measured |
-| Button-to-result, warm p50 / p95 (30+ runs) | Not measured |
-| Peak RSS or PSS / failures | Not measured |
+| Model initialization, cold | AVD: 1,398 ms (`prepare()`; separate from inference) |
+| Button-to-result, cold | Not measured; Gateway only |
+| Button-to-result, warm p50 / p95 (30+ runs) | AVD Gateway: 5,838 / 7,504 ms; UI not included |
+| Expected labels / score stability | AVD: all 3 expected OBSERVABLE, 30/30; scores identical, 30/30 |
+| Peak RSS or PSS / failures | AVD sampled PSS max: 1,056,006 KiB; no test failures; not a true transient peak |
 | Human review / Jev agreement | Not measured |
 
 ## Primary sources
@@ -83,5 +99,6 @@ The in-app model download runs on the device and stores the file only in the app
 - [Qwen3-0.6B INT4 model card, artifact hash/size, usage, license, and measurements](https://huggingface.co/litert-community/Qwen3-0.6B-int4)
 - [LiteRT-LM Android API](https://ai.google.dev/edge/litert-lm/android)
 - [LiteRT-LM source and Swift API status](https://github.com/google-ai-edge/LiteRT-LM)
+- [LiteRT-LM report on CPU decode speed and max-token allocation](https://github.com/google-ai-edge/LiteRT-LM/issues/2568)
 - [Gemma 3 270M model card](https://huggingface.co/litert-community/gemma-3-270m-it)
 - [Gemma Terms of Use](https://ai.google.dev/gemma/terms)
