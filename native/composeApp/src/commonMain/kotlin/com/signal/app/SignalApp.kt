@@ -73,6 +73,8 @@ private enum class Screen { LANDING, HOME, FACTS, ADD_FACT, RESULT, HISTORY, SNA
 @Composable
 fun SignalApp(
   gateway: JudgeGateway = LocalJudgeGateway,
+  onDeviceGateway: JudgeGateway? = null,
+  onDeviceModelManager: OnDeviceModelManager? = null,
   accountRepository: SignalAccountRepository? = null,
   onRevealCompositionsMeasured: ((Int) -> Unit)? = null,
 ) {
@@ -94,6 +96,7 @@ fun SignalApp(
   var authEmail by remember { mutableStateOf("") }
   var newFact by remember { mutableStateOf("") }
   var jevConsentAccepted by remember { mutableStateOf(false) }
+  var useOnDeviceJudge by remember { mutableStateOf(false) }
   var addFactMessage by remember { mutableStateOf<String?>(null) }
   var isUpdating by remember { mutableStateOf(false) }
   val coroutineScope = rememberCoroutineScope()
@@ -102,6 +105,11 @@ fun SignalApp(
   val relationships = accountRepository?.relationships?.collectAsState()?.value.orEmpty()
   val reanalysisDraft = accountRepository?.reanalysisDraft?.collectAsState()?.value
   val accountMessage = accountRepository?.message?.collectAsState()?.value
+  val onDeviceModelStatus = onDeviceModelManager?.status?.collectAsState()?.value
+
+  LaunchedEffect(onDeviceModelManager) {
+    onDeviceModelManager?.refresh()
+  }
 
   LaunchedEffect(accountRepository) {
     selectedSkin = accountRepository?.preferredSkin() ?: SignalSkin.BUBBLE_PINK
@@ -199,6 +207,11 @@ fun SignalApp(
         validations = validations,
         message = formMessage,
         isAnalyzing = isAnalyzing,
+        useOnDeviceJudge = useOnDeviceJudge,
+        onDeviceAvailable = onDeviceGateway != null && onDeviceModelManager != null,
+        onDeviceModelStatus = onDeviceModelStatus,
+        onToggleOnDevice = { if (!isAnalyzing) useOnDeviceJudge = it },
+        onDownloadOnDeviceModel = { onDeviceModelManager?.download() },
         onBack = { if (isAnalyzing) cancelAnalysis() else screen = Screen.LANDING },
         onCancelAnalysis = cancelAnalysis,
         onChange = { index, value ->
@@ -222,7 +235,17 @@ fun SignalApp(
         onAnalyze = {
           val cleaned = facts.map(::normalizeFact).filter(String::isNotEmpty)
           val inputErrors = cleaned.map(::factInputError).filterNotNull()
+          val useLocalForThisAnalysis = useOnDeviceJudge
           when {
+            useLocalForThisAnalysis && onDeviceModelStatus?.stage != OnDeviceModelStage.READY -> {
+              formMessage = when (onDeviceModelStatus?.stage) {
+                OnDeviceModelStage.DOWNLOADING -> "端末内AIモデルを取得中です。完了後にもう一度お試しください。"
+                OnDeviceModelStage.CHECKING -> "端末内AIモデルを確認中です。少し待ってください。"
+                OnDeviceModelStage.FAILED -> onDeviceModelStatus.messageJa
+                  ?: "モデルを取得できませんでした。再試行してください。"
+                else -> "端末内AIモデルを先に取得してください。Factは端末内に残っています。"
+              }
+            }
             cleaned.size < 3 -> formMessage = "最低3つのFactを追加してください。"
             inputErrors.isNotEmpty() -> formMessage = "短すぎるFactがあります。出来事をもう少し具体的に書いてください。"
             cleaned.size != cleaned.distinct().size -> formMessage = "同じFactが重複しています。"
@@ -233,12 +256,14 @@ fun SignalApp(
               formMessage = null
               analysisJob = coroutineScope.launch {
                 try {
-                  val checked = gateway.validate(cleaned)
+                  val activeGateway = if (useLocalForThisAnalysis) onDeviceGateway else gateway
+                  if (activeGateway == null) throw IllegalStateException("On-device judge is unavailable.")
+                  val checked = activeGateway.validate(cleaned)
                   validations = checked
                   if (checked.any { it.status != FactStatus.OBSERVABLE }) {
                     formMessage = "解釈を含むFactがあります。実際に起きたことへ書き換えてください。"
                   } else {
-                    analysis = gateway.analyze(cleaned)
+                    analysis = activeGateway.analyze(cleaned)
                     resultRelationshipId = null
                     revealFact = cleaned.first()
                     screen = Screen.RESULT
@@ -500,6 +525,11 @@ private fun FactScreen(
   validations: List<FactValidation>,
   message: String?,
   isAnalyzing: Boolean,
+  useOnDeviceJudge: Boolean,
+  onDeviceAvailable: Boolean,
+  onDeviceModelStatus: OnDeviceModelStatus?,
+  onToggleOnDevice: (Boolean) -> Unit,
+  onDownloadOnDeviceModel: () -> Unit,
   onBack: () -> Unit,
   onCancelAnalysis: () -> Unit,
   onChange: (Int, String) -> Unit,
@@ -569,6 +599,14 @@ private fun FactScreen(
           .background(SignalColors.White.copy(alpha = .72f))
           .border(1.dp, SignalColors.Ink, SignalShapes.Control)
           .padding(horizontal = 11.dp, vertical = 9.dp),
+      )
+      Spacer(Modifier.height(14.dp))
+      OnDeviceModelCard(
+        enabled = onDeviceAvailable && !isAnalyzing,
+        selected = useOnDeviceJudge,
+        status = onDeviceModelStatus,
+        onToggle = onToggleOnDevice,
+        onDownload = onDownloadOnDeviceModel,
       )
       Spacer(Modifier.height(20.dp))
       facts.forEachIndexed { index, fact ->
@@ -641,6 +679,77 @@ private fun FactScreen(
       Spacer(Modifier.height(22.dp))
       RealityTip()
       Spacer(Modifier.height(34.dp))
+    }
+  }
+}
+
+@Composable
+private fun OnDeviceModelCard(
+  enabled: Boolean,
+  selected: Boolean,
+  status: OnDeviceModelStatus?,
+  onToggle: (Boolean) -> Unit,
+  onDownload: () -> Unit,
+) {
+  val uriHandler = LocalUriHandler.current
+  Column(
+    Modifier
+      .fillMaxWidth()
+      .clip(SignalShapes.Control)
+      .background(SignalColors.White.copy(alpha = .86f))
+      .border(2.dp, SignalColors.Ink, SignalShapes.Control)
+      .padding(12.dp),
+  ) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      Checkbox(
+        checked = selected,
+        enabled = enabled,
+        onCheckedChange = onToggle,
+      )
+      Column(Modifier.weight(1f)) {
+        Text("端末内AIで分析", color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 14.sp)
+        Text("Factをサーバーに送らず、この端末だけで判定します。", color = SignalColors.Muted, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, lineHeight = 16.sp)
+      }
+    }
+    if (selected) {
+      Spacer(Modifier.height(5.dp))
+      Text(
+        "初回取得ではHugging Faceへ接続します。ダウンロードや判定にFactは含まれません。",
+        color = SignalColors.Ink,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 10.sp,
+        lineHeight = 15.sp,
+      )
+      Text(
+        "モデル情報・ライセンス（Hugging Face）↗",
+        color = SignalColors.Ink,
+        fontWeight = FontWeight.Black,
+        fontSize = 10.sp,
+        modifier = Modifier.clickable(
+          role = Role.Button,
+          onClickLabel = "Hugging Faceでモデル情報とライセンスを開く",
+        ) {
+          runCatching { uriHandler.openUri("https://huggingface.co/litert-community/Qwen3-0.6B-int4") }
+        },
+      )
+      Spacer(Modifier.height(5.dp))
+      when (status?.stage) {
+        OnDeviceModelStage.READY -> Text("モデル準備完了 · オフラインで判定できます。", color = SignalColors.Ink, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+        OnDeviceModelStage.DOWNLOADING -> Text("モデル取得中 ${status.progressPercent}% · 347 MB", color = SignalColors.Ink, fontWeight = FontWeight.Black, fontSize = 11.sp)
+        OnDeviceModelStage.CHECKING -> Text("端末内モデルを確認中…", color = SignalColors.Muted, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+        OnDeviceModelStage.FAILED -> Text(status.messageJa ?: "取得に失敗しました。", color = SignalColors.Ink, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+        else -> Text("初回のみ約347 MBを取得します。Wi-Fi接続と約500 MB以上の空き容量を推奨します。", color = SignalColors.Ink, fontWeight = FontWeight.Bold, fontSize = 11.sp, lineHeight = 16.sp)
+      }
+      if (status?.stage == OnDeviceModelStage.MISSING || status?.stage == OnDeviceModelStage.FAILED) {
+        Spacer(Modifier.height(9.dp))
+        GlossyButton(
+          "モデルを取得 · 約347 MB",
+          SignalColors.Lime,
+          SignalColors.Cyan,
+          onDownload,
+          modifier = Modifier.fillMaxWidth(),
+        )
+      }
     }
   }
 }

@@ -97,4 +97,6 @@ xcodebuild -project SIGNAL.xcodeproj -scheme SIGNAL -sdk iphonesimulator -destin
 
 `iosApp/Sources/SignalNativeApp.swift`はSwiftUIの薄いOSシェルだけを持ち、画面そのものは共有のCompose Multiplatform UIです。
 
+XcodeのDebug構成は`build/XCFrameworks/debug`、Release構成は`build/XCFrameworks/release`の共有フレームワークを参照します。ReleaseのビルドやArchiveの前に、`./gradlew :composeApp:assembleSignalSharedReleaseXCFramework`を実行してください。Debug構成では`./gradlew :composeApp:assembleSignalSharedDebugXCFramework`を使います。iOS配布には署名とプロビジョニング、実機検証、ストア提出に必要な情報が別途必要です。
+
 `CADisableMinimumFrameDurationOnPhone`はCompose Multiplatform iOSの必須設定として、`iosApp/Sources/Info.plist`へ追加済みです。

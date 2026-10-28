@@ -10,10 +10,16 @@ import androidx.compose.runtime.remember
 
 class MainActivity : ComponentActivity() {
   private var accountRepository: SignalAccountRepository? = null
+  private var onDeviceTextInference: AndroidOnDeviceTextInference? = null
+  private var onDeviceModelManager: AndroidOnDeviceModelManager? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
+    if (!BuildConfig.SIGNAL_BENCHMARK_MODE) {
+      onDeviceTextInference = AndroidOnDeviceTextInference(applicationContext)
+      onDeviceModelManager = AndroidOnDeviceModelManager.getInstance(applicationContext)
+    }
     if (!BuildConfig.SIGNAL_BENCHMARK_MODE) {
       accountRepository = createSignalAccountRepository(
         supabaseUrl = BuildConfig.SIGNAL_SUPABASE_URL,
@@ -25,11 +31,15 @@ class MainActivity : ComponentActivity() {
     intent?.dataString?.let { accountRepository?.receiveDeepLink(it) }
     setContent {
       val gateway = remember {
-        if (BuildConfig.SIGNAL_BENCHMARK_MODE) LocalJudgeGateway
-        else createJudgeGateway(BuildConfig.SIGNAL_API_BASE_URL)
+        when {
+          BuildConfig.SIGNAL_BENCHMARK_MODE -> LocalJudgeGateway
+          else -> createJudgeGateway(BuildConfig.SIGNAL_API_BASE_URL)
+        }
       }
       SignalApp(
         gateway = gateway,
+        onDeviceGateway = onDeviceTextInference?.let(::OnDeviceJudgeGateway),
+        onDeviceModelManager = onDeviceModelManager,
         accountRepository = accountRepository,
         onRevealCompositionsMeasured = if (BuildConfig.SIGNAL_BENCHMARK_MODE) {
           { count -> Log.d("SIGNAL_PERF", "factToReceiptRecompositions=$count") }
