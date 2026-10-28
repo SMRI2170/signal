@@ -30,7 +30,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		25BD4BBAAC88CB962B8C739C /* SignalShared.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = SignalShared.xcframework; path = ../composeApp/build/XCFrameworks/debug/SignalShared.xcframework; sourceTree = "<group>"; };
+		25BD4BBAAC88CB962B8C739C /* SignalShared.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = SignalShared.xcframework; path = "../composeApp/build/XCFrameworks/$(SIGNAL_SHARED_VARIANT)/SignalShared.xcframework"; sourceTree = "<group>"; };
 		2A9906EAB9FA564028C1ABD1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		2D6A2B1229CADBA55C98E1D8 /* SignalNativeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalNativeApp.swift; sourceTree = "<group>"; };
 		8A0A111C7F77D9E21CE4A064 /* IosLiteRtTextInference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IosLiteRtTextInference.swift; sourceTree = "<group>"; };
@@ -283,7 +283,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
-					"\"../composeApp/build/XCFrameworks/debug\"",
+					"\"../composeApp/build/XCFrameworks/$(SIGNAL_SHARED_VARIANT)\"",
 				);
 				INFOPLIST_FILE = Sources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -294,6 +294,7 @@
 				PRODUCT_NAME = SIGNAL;
 				SDKROOT = iphoneos;
 				SIGNAL_API_BASE_URL = "https://deufcadognkhymqxrejo.supabase.co/functions/v1/signal-api";
+				SIGNAL_SHARED_VARIANT = release;
 				SIGNAL_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_RBON1FbtOwYjqWxoiywYkg_WAz5-AFh";
 				SIGNAL_SUPABASE_URL = "https://deufcadognkhymqxrejo.supabase.co";
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -307,7 +308,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
-					"\"../composeApp/build/XCFrameworks/debug\"",
+					"\"../composeApp/build/XCFrameworks/$(SIGNAL_SHARED_VARIANT)\"",
 				);
 				INFOPLIST_FILE = Sources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -318,6 +319,7 @@
 				PRODUCT_NAME = SIGNAL;
 				SDKROOT = iphoneos;
 				SIGNAL_API_BASE_URL = "https://deufcadognkhymqxrejo.supabase.co/functions/v1/signal-api";
+				SIGNAL_SHARED_VARIANT = debug;
 				SIGNAL_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_RBON1FbtOwYjqWxoiywYkg_WAz5-AFh";
 				SIGNAL_SUPABASE_URL = "https://deufcadognkhymqxrejo.supabase.co";
 				TARGETED_DEVICE_FAMILY = "1,2";

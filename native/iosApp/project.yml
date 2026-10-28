@@ -24,7 +24,12 @@ targets:
         SIGNAL_API_BASE_URL: https://deufcadognkhymqxrejo.supabase.co/functions/v1/signal-api
         SIGNAL_SUPABASE_URL: https://deufcadognkhymqxrejo.supabase.co
         SIGNAL_SUPABASE_PUBLISHABLE_KEY: sb_publishable_RBON1FbtOwYjqWxoiywYkg_WAz5-AFh
+      configs:
+        Debug:
+          SIGNAL_SHARED_VARIANT: debug
+        Release:
+          SIGNAL_SHARED_VARIANT: release
     dependencies:
-      - framework: ../composeApp/build/XCFrameworks/debug/SignalShared.xcframework
+      - framework: ../composeApp/build/XCFrameworks/$(SIGNAL_SHARED_VARIANT)/SignalShared.xcframework
       - package: LiteRT-LM
         product: LiteRTLM
